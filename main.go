@@ -10,23 +10,19 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-// WebSocket upgrader
 var upgrader = websocket.Upgrader{
-	CheckOrigin: func(r *http.Request) bool { return true }, // Allow all origins for dev
+	CheckOrigin: func(r *http.Request) bool { return true },
 }
 
-// Client represents a single connected user
 type Client struct {
 	conn *websocket.Conn
 }
 
-// Global hub to keep track of all connected clients
 var (
 	clients   = make(map[*Client]bool)
 	clientsMu sync.Mutex
 )
 
-// Message structure
 type Message struct {
 	Author string `json:"author"`
 	Text   string `json:"text"`
@@ -34,18 +30,13 @@ type Message struct {
 }
 
 func main() {
-	// 1. Serve the static frontend files
 	fs := http.FileServer(http.Dir("./"))
 	http.Handle("/", fs)
 
-	// 2. API Endpoints
 	http.HandleFunc("/api/request-otp", handleRequestOTP)
 	http.HandleFunc("/api/verify-otp", handleVerifyOTP)
-	
-	// 3. WebSocket Endpoint for Real-Time Chat
 	http.HandleFunc("/ws", handleConnections)
 
-	// 4. Start the server
 	port := ":8080"
 	fmt.Printf("🚀 Chat Hub backend started at http://localhost%s\n", port)
 	
@@ -54,10 +45,7 @@ func main() {
 	}
 }
 
-// --- WEBSOCKET LOGIC ---
-
 func handleConnections(w http.ResponseWriter, r *http.Request) {
-	// Upgrade initial GET request to a websocket
 	ws, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Fatal(err)
@@ -66,12 +54,10 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 
 	client := &Client{conn: ws}
 
-	// Register our new client
 	clientsMu.Lock()
 	clients[client] = true
 	clientsMu.Unlock()
 
-	// Remove client when they disconnect
 	defer func() {
 		clientsMu.Lock()
 		delete(clients, client)
@@ -80,17 +66,13 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 
 	for {
 		var msg Message
-		// Read in a new message as JSON and map it to a Message object
 		err := ws.ReadJSON(&msg)
 		if err != nil {
-			// If error (e.g. user closed tab), remove client and break loop
 			clientsMu.Lock()
 			delete(clients, client)
 			clientsMu.Unlock()
 			break
 		}
-
-		// Broadcast the message to everyone
 		broadcastMessage(msg)
 	}
 }
@@ -108,7 +90,6 @@ func broadcastMessage(msg Message) {
 	}
 }
 
-// --- OTP LOGIC (From before) ---
 var otpStore = make(map[string]string)
 var otpMutex sync.RWMutex
 
