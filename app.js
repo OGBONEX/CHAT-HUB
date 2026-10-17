@@ -1,5 +1,7 @@
 let activeChatUser = null;
+let activeChannelID = null;
 let socket;
+let typingTimeout;
 
 document.addEventListener("DOMContentLoaded", async () => {
     let currentUsername = localStorage.getItem("chathub_username") || "User";
@@ -13,11 +15,27 @@ document.addEventListener("DOMContentLoaded", async () => {
     // 1. Connect WebSocket
     const wsProtocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
     socket = new WebSocket(`${wsProtocol}${window.location.host}/ws?user=${currentUsername}`);
+
     socket.onmessage = (event) => {
         const data = JSON.parse(event.data);
+        
+        // Handle DMs
         if (data.type === "new_message" && (activeChatUser === data.sender || activeChatUser === data.receiver)) {
             const isMe = data.sender === currentUsername;
             appendDMMessage(isMe ? "You" : data.sender, data.content, isMe ? currentColor : "#5865F2");
+        }
+        
+        // Handle Server Channels
+        if (data.type === "server_message" && activeChannelID === data.channel_id) {
+            const isMe = data.sender === currentUsername;
+            appendDMMessage(isMe ? "You" : data.sender, data.content, isMe ? currentColor : "#5865F2");
+        }
+
+        // Handle Typing Indicators
+        if (data.type === "typing") {
+            document.getElementById("dm-message-input").placeholder = `${data.user} is typing...`;
+        } else if (data.type === "stop_typing") {
+            document.getElementById("dm-message-input").placeholder = activeChannelID ? `Message #${document.getElementById("dm-chat-name").innerText.split(" ")[0].replace('#', '')}` : `Message @${activeChatUser}`;
         }
     };
 
@@ -59,19 +77,20 @@ document.addEventListener("DOMContentLoaded", async () => {
         document.getElementById("view-friends").style.display = "none";
     });
 
-    // 5. DM Input
+    // 5. Typing Indicator Logic
     const dmInput = document.getElementById("dm-message-input");
-    dmInput.addEventListener("keypress", async (e) => {
-        if (e.key === "Enter" && dmInput.value.trim() !== "" && activeChatUser) {
-            const text = dmInput.value.trim();
-            appendDMMessage("You", text, currentColor);
-            dmInput.value = "";
-            fetch("/api/messages/send", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ sender: currentUsername, receiver: activeChatUser, content: text })
-            });
-        }
+    dmInput.addEventListener("input", () => {
+        if (!socket || socket.readyState !== WebSocket.OPEN) return;
+        
+        const target = activeChannelID ? `channel_${activeChannelID}` : activeChatUser;
+        if (!target) return;
+
+        socket.send(JSON.stringify({ type: "typing", user: currentUsername, target: target }));
+        
+        clearTimeout(typingTimeout);
+        typingTimeout = setTimeout(() => {
+            socket.send(JSON.stringify({ type: "stop_typing", user: currentUsername, target: target }));
+        }, 2000);
     });
 
     // 6. Settings
@@ -110,6 +129,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 // --- Open DM ---
 async function openChat(friendName) {
     activeChatUser = friendName;
+    activeChannelID = null; // Clear channel
     const currentUser = localStorage.getItem("chathub_username") || "User";
     const currentColor = localStorage.getItem("chathub_color") || "#23a559";
     
@@ -308,6 +328,8 @@ async function promptInvite(serverID) {
 }
 
 async function openServerChannel(channelID, channelName, serverName) {
+    activeChannelID = channelID;
+    activeChatUser = null;
     const currentUser = localStorage.getItem("chathub_username") || "User";
     const currentColor = localStorage.getItem("chathub_color") || "#23a559";
 
