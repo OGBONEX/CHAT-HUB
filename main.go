@@ -1,29 +1,53 @@
 package main
 
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
 	"sync"
 
-	"github.com/gorilla/websocket"
+	_ "github.com/mattn/go-sqlite3"
 )
 
-var upgrader = websocket.Upgrader{CheckOrigin: func(r *http.Request) bool { return true }}
-type Client struct { conn *websocket.Conn }
-var (clients = make(map[*Client]bool); clientsMu sync.Mutex)
+var db *sql.DB
+var dbMu sync.Mutex
 
-// --- Chat & Friends Data ---
-type Message struct { Author string `json:"author"`; Text string `json:"text"`; Color string `json:"color"`; Type string `json:"type"` }
+// --- Database Setup ---
+func initDB() {
+	var err error
+	db, err = sql.Open("sqlite3", "./chathub.db")
+	if err != nil {
+		log.Fatal(err)
+	}
 
-// In-memory Friends Store
-var (
-	friendsStore = make(map[string][]string) // map[username][]friends
-	friendsMu    sync.RWMutex
-)
+	// Create Users Table
+	createUsersTable := `CREATE TABLE IF NOT EXISTS users (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		username TEXT UNIQUE,
+		email TEXT UNIQUE,
+		password TEXT
+	);`
+	
+	// Create Friends Table
+	createFriendsTable := `CREATE TABLE IF NOT EXISTS friends (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		user1 TEXT,
+		user2 TEXT,
+		UNIQUE(user1, user2)
+	);`
+
+	db.Exec(createUsersTable)
+	db.Exec(createFriendsTable)
+	fmt.Println("💾 Database connected and tables created.")
+}
 
 func main() {
+	initDB()
+	defer db.Close()
+
+	// Serve Frontend
 	fs := http.FileServer(http.Dir("./"))
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/" {
@@ -33,89 +57,17 @@ func main() {
 		fs.ServeHTTP(w, r)
 	})
 
-	// APIs
-	http.HandleFunc("/api/request-otp", handleRequestOTP)
-	http.HandleFunc("/api/verify-otp", handleVerifyOTP)
+	// API Routes
 	http.HandleFunc("/api/register", handleRegister)
-	http.HandleFunc("/api/friends", handleFriends) // NEW: Friends API
-	http.HandleFunc("/ws", handleConnections)
+	http.HandleFunc("/api/login", handleLogin)
+	http.HandleFunc("/api/friends", handleFriends)
 
 	port := ":8080"
 	fmt.Printf("🚀 Chat Hub backend started at http://localhost%s\n", port)
 	log.Fatal(http.ListenAndServe(port, nil))
 }
 
-// --- WEBSOCKET ---
-func handleConnections(w http.ResponseWriter, r *http.Request) {
-	ws, err := upgrader.Upgrade(w, r, nil)
-	if err != nil { log.Fatal(err) }
-	defer ws.Close()
-
-	client := &Client{conn: ws}
-	clientsMu.Lock(); clients[client] = true; clientsMu.Unlock()
-
-	defer func() {
-		clientsMu.Lock(); delete(clients, client); clientsMu.Unlock()
-	}()
-
-	for {
-		var msg Message
-		err := ws.ReadJSON(&msg)
-		if err != nil {
-			clientsMu.Lock(); delete(clients, client); clientsMu.Unlock(); break
-		}
-		clientsMu.Lock()
-		for c := range clients { c.conn.WriteJSON(msg) }
-		clientsMu.Unlock()
-	}
-}
-
-// --- FRIENDS API ---
-func handleFriends(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	var req struct {
-		User   string `json:"user"`
-		Friend string `json:"friend"`
-	}
-
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Bad request", http.StatusBadRequest)
-		return
-	}
-
-	friendsMu.Lock()
-	defer friendsMu.Unlock()
-
-	// Add friend to user's list (prevent duplicates)
-	isDuplicate := false
-	for _, f := range friendsStore[req.User] {
-		if f == req.Friend {
-			isDuplicate = true
-			break
-		}
-	}
-
-	if !isDuplicate && req.User != req.Friend {
-		friendsStore[req.User] = append(friendsStore[req.User], req.Friend)
-		fmt.Printf("🤝 %s added %s as a friend.\n", req.User, req.Friend)
-	}
-
-	// Return the updated list
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string][]string{"friends": friendsStore[req.User]})
-}
-
-// --- AUTHENTICATION & REGISTER (From previous steps) ---
-var otpStore = make(map[string]string)
-var otpMutex sync.RWMutex
-type AuthRequest struct { Email string `json:"email"`; Code string `json:"code"`; Password string `json:"password"` }
-func handleRequestOTP(w http.ResponseWriter, r *http.Request) { /* ... keep your existing code ... */ }
-func handleVerifyOTP(w http.ResponseWriter, r *http.Request) { /* ... keep your existing code ... */ }
-
+// --- Register & Login ---
 func handleRegister(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Email    string `json:"email"`
@@ -123,7 +75,93 @@ func handleRegister(w http.ResponseWriter, r *http.Request) {
 		Username string `json:"username"`
 	}
 	json.NewDecoder(r.Body).Decode(&req)
-	fmt.Printf("👤 New Account Created: %s (%s)\n", req.Username, req.Email)
+
+	dbMu.Lock()
+	_, err := db.Exec("INSERT INTO users (username, email, password) VALUES (?, ?, ?)", req.Username, req.Email, req.Password)
+	dbMu.Unlock()
+
+	if err != nil {
+		http.Error(w, "Username or email already exists", http.StatusConflict)
+		return
+	}
+
+	fmt.Printf("👤 New Account Created: %s\n", req.Username)
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{"message": "Account created"})
+}
+
+func handleLogin(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Identifier string `json:"identifier"`
+		Password   string `json:"password"`
+	}
+	json.NewDecoder(r.Body).Decode(&req)
+
+	var username string
+	err := db.QueryRow("SELECT username FROM users WHERE (username = ? OR email = ?) AND password = ?", req.Identifier, req.Identifier, req.Password).Scan(&username)
+
+	if err != nil {
+		http.Error(w, "Invalid credentials", http.StatusUnauthorized)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]string{"username": username})
+}
+
+// --- Friends ---
+func handleFriends(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodGet {
+		// Get friends for a user
+		user := r.URL.Query().Get("user")
+		rows, err := db.Query("SELECT user2 FROM friends WHERE user1 = ?", user)
+		if err != nil {
+			http.Error(w, "Database error", http.StatusInternalServerError)
+			return
+		}
+		defer rows.Close()
+
+		var friends []string
+		for rows.Next() {
+			var f string
+			rows.Scan(&f)
+			friends = append(friends, f)
+		}
+		if friends == nil { friends = []string{} }
+		
+		json.NewEncoder(w).Encode(map[string][]string{"friends": friends})
+		return
+	}
+
+	if r.Method == http.MethodPost {
+		var req struct {
+			User   string `json:"user"`
+			Friend string `json:"friend"`
+		}
+		json.NewDecoder(r.Body).Decode(&req)
+
+		if req.User == req.Friend {
+			http.Error(w, "Cannot add yourself", http.StatusBadRequest)
+			return
+		}
+
+		// Check if friend exists in users table
+		var exists int
+		db.QueryRow("SELECT COUNT(*) FROM users WHERE username = ?", req.Friend).Scan(&exists)
+		if exists == 0 {
+			http.Error(w, "User not found", http.StatusNotFound)
+			return
+		}
+
+		dbMu.Lock()
+		_, err := db.Exec("INSERT OR IGNORE INTO friends (user1, user2) VALUES (?, ?)", req.User, req.Friend)
+		dbMu.Unlock()
+
+		if err != nil {
+			http.Error(w, "Error adding friend", http.StatusInternalServerError)
+			return
+		}
+		
+		fmt.Printf("🤝 %s added %s as a friend.\n", req.User, req.Friend)
+		w.WriteHeader(http.StatusOK)
+	}
 }
