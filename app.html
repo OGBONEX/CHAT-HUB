@@ -11,19 +11,18 @@
     <div class="app-layout">
         <!-- Server Icons Sidebar -->
         <div class="server-sidebar">
+            <!-- Home / DMs -->
             <div class="server-icon active" title="Direct Messages">
                 <i class="fa-solid fa-comment-dots"></i>
             </div>
-            <div class="sidebar-divider"></div>
-            
-            <div class="server-icon" title="Chat Hub Community">CH</div>
             
             <div class="sidebar-divider"></div>
 
+            <!-- Action Buttons -->
             <div class="server-icon action-btn" id="create-server-btn" title="Create a Server">
                 <i class="fa-solid fa-plus"></i>
             </div>
-            <div class="server-icon action-btn" id="explore-btn" title="Explore">
+            <div class="server-icon action-btn" id="explore-btn" title="Explore Servers">
                 <i class="fa-solid fa-compass"></i>
             </div>
         </div>
@@ -35,16 +34,17 @@
             </div>
             
             <div class="channel-list">
-                <div class="channel"><i class="fa-solid fa-user-group"></i> Friends</div>
-                <div class="channel active"><i class="fa-solid fa-inbox"></i> Direct Messages</div>
+                <!-- Friends Button -->
+                <div class="channel" id="nav-friends"><i class="fa-solid fa-user-group"></i> Friends</div>
+                <!-- DMs Button -->
+                <div class="channel active" id="nav-dms"><i class="fa-solid fa-inbox"></i> Direct Messages</div>
                 
-                <div class="category">DIRECT MESSAGES</div>
+                <div class="category" id="dm-category">DIRECT MESSAGES</div>
                 
-                <div class="dm-user active">
-                    <div class="avatar" style="background: #5865F2;">U</div>
-                    <div class="dm-info">
-                        <span class="dm-name">User 1</span>
-                        <span class="dm-status">Hello there!</span>
+                <!-- DM List -->
+                <div id="dm-list-container">
+                    <div style="padding: 16px; text-align: center; color: var(--text-muted); font-size: 0.9rem;">
+                        No messages yet.
                     </div>
                 </div>
             </div>
@@ -52,9 +52,9 @@
             <!-- User Panel -->
             <div class="user-panel">
                 <div class="user-info">
-                    <div class="avatar" style="background: #23a559;">Y</div>
+                    <div class="avatar" id="user-avatar" style="background: #23a559;">U</div>
                     <div>
-                        <div class="username">You</div>
+                        <div class="username" id="user-display-name">Loading...</div>
                         <div class="status">Online</div>
                     </div>
                 </div>
@@ -66,39 +66,29 @@
             </div>
         </div>
 
-        <!-- Main Chat Area -->
-        <div class="chat-area">
+        <!-- Main Chat Area (DMs) -->
+        <div class="chat-area" id="view-dms">
+            <div style="flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; color: var(--text-muted);">
+                <i class="fa-regular fa-comments" style="font-size: 4rem; margin-bottom: 20px;"></i>
+                <h2>Welcome to Chat Hub</h2>
+                <p>Select a friend from the left to start chatting.</p>
+            </div>
+        </div>
+
+        <!-- Main Chat Area (Friends View) -->
+        <div class="chat-area" id="view-friends" style="display: none;">
             <div class="chat-header">
-                <div class="chat-title">
-                    <div class="avatar" style="width: 24px; height: 24px; font-size: 0.7rem; background: #5865F2;">U</div>
-                    User 1
-                </div>
-                <div class="header-actions">
-                    <i class="fa-solid fa-phone"></i>
-                    <i class="fa-solid fa-video"></i>
-                </div>
+                <div class="chat-title"><i class="fa-solid fa-user-group" style="margin-right: 8px;"></i> Friends</div>
             </div>
-            
-            <div class="chat-messages" id="chat-messages">
-                <div class="message">
-                    <div class="avatar" style="background: #5865F2;">U</div>
-                    <div class="message-content">
-                        <div class="message-header">
-                            <span class="author" style="color: #5865F2;">User 1</span>
-                            <span class="time">Today at 4:15 PM</span>
-                        </div>
-                        <div class="text">Hey! Welcome to Chat Hub.</div>
-                    </div>
+            <div style="padding: 20px; flex: 1; overflow-y: auto;">
+                <div style="display: flex; gap: 10px; margin-bottom: 20px;">
+                    <input type="text" id="friend-search" placeholder="Enter a username to add..." style="flex: 1; padding: 10px; background: var(--bg-server); border: none; border-radius: 4px; color: white; outline: none;">
+                    <button style="background: var(--accent); color: white; border: none; padding: 0 20px; border-radius: 4px; font-weight: bold; cursor: pointer;" onclick="addFriend()">Send Request</button>
                 </div>
-            </div>
-            
-            <div class="chat-input-wrapper">
-                <div class="chat-input">
-                    <i class="fa-solid fa-plus"></i>
-                    <input type="text" id="message-input" placeholder="Message @User 1" autocomplete="off">
-                    <div class="input-icons">
-                        <i class="fa-solid fa-face-smile"></i>
-                    </div>
+                
+                <h3 style="font-size: 0.8rem; color: var(--text-muted); text-transform: uppercase; margin-bottom: 10px;">Your Friends</h3>
+                <div id="friends-list">
+                    <p style="color: var(--text-muted); font-size: 0.9rem;">You don't have any friends yet. Add some!</p>
                 </div>
             </div>
         </div>
@@ -108,29 +98,18 @@
     <div class="modal-overlay" id="settings-modal">
         <div class="settings-modal">
             <button class="settings-close" id="close-settings">&times;</button>
-            
             <div class="settings-sidebar">
                 <div class="settings-tab active">My Account</div>
                 <div class="settings-tab">Profile</div>
-                <div class="settings-tab">Voice & Video</div>
-                <div class="settings-tab" style="margin-top: auto; color: #ff5c46;">Log Out</div>
+                <div class="settings-tab" style="margin-top: auto; color: #ff5c46;" onclick="logout()">Log Out</div>
             </div>
-
             <div class="settings-content">
                 <h2>My Account</h2>
                 <div class="form-group">
                     <label>Username</label>
-                    <input type="text" value="You" id="settings-username">
+                    <input type="text" value="User" id="settings-username">
                 </div>
-                <div class="form-group">
-                    <label>Email</label>
-                    <input type="email" value="you@example.com" disabled style="opacity: 0.5;">
-                </div>
-                <div class="form-group">
-                    <label>Profile Color (Hex)</label>
-                    <input type="text" value="#5865F2" id="settings-color">
-                </div>
-                <button class="btn-full-profile" style="width: auto; padding: 10px 20px;">Save Changes</button>
+                <button class="btn-full-profile" style="width: auto; padding: 10px 20px;" onclick="saveProfile()">Save Changes</button>
             </div>
         </div>
     </div>
