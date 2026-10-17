@@ -9,14 +9,13 @@
 </head>
 <body>
     <div class="app-layout">
-        <!-- Server Icons Sidebar -->
+        <!-- 1. Server Icons Sidebar -->
         <div class="server-sidebar">
             <div class="server-icon active" title="Direct Messages">
                 <i class="fa-solid fa-comment-dots"></i>
             </div>
             <div class="sidebar-divider"></div>
             
-            <!-- Action Buttons -->
             <div class="server-icon action-btn" id="create-server-btn" title="Create a Server">
                 <i class="fa-solid fa-plus"></i>
             </div>
@@ -25,18 +24,16 @@
             </div>
         </div>
 
-        <!-- Channel / DM Sidebar -->
+        <!-- 2. Channel / DM Sidebar -->
         <div class="channel-sidebar">
             <div class="search-bar">
                 <input type="text" placeholder="Find or start a conversation">
             </div>
             
             <div class="channel-list">
-                <!-- Friends Button -->
                 <div class="channel" id="nav-friends">
                     <i class="fa-solid fa-user-group"></i> Friends
                 </div>
-                <!-- DMs Button -->
                 <div class="channel active" id="nav-dms">
                     <i class="fa-solid fa-inbox"></i> Direct Messages
                 </div>
@@ -49,45 +46,39 @@
                     </div>
                 </div>
             </div>
-
-            <!-- User Panel -->
-            <div class="user-panel">
-                <div class="user-info">
-                    <div class="avatar" id="user-avatar" style="background: #23a559;">U</div>
-                    <div>
-                        <div class="username" id="user-display-name">Loading...</div>
-                        <div class="status">Online</div>
-                    </div>
-                </div>
-                <div class="user-controls">
-                    <i class="fa-solid fa-microphone"></i>
-                    <i class="fa-solid fa-headphones"></i>
-                    <i class="fa-solid fa-gear" id="settings-btn" style="cursor: pointer;"></i>
-                </div>
-            </div>
         </div>
 
-        <!-- Main Chat Area (DMs) -->
+        <!-- 3. Main Chat Area -->
         <div class="chat-area" id="view-dms">
-            <!-- Blank state (Shows when no chat is selected) -->
+            <!-- Blank State (Welcome Screen) -->
             <div id="dm-empty-state" style="flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; color: var(--text-muted);">
-                <i class="fa-regular fa-comments" style="font-size: 4rem; margin-bottom: 20px; color: var(--border-color);"></i>
+                <i class="fa-regular fa-comments" style="font-size: 4rem; margin-bottom: 20px; color: var(--glass-border);"></i>
                 <h2 style="color: white; margin-bottom: 8px;">Welcome to Chat Hub</h2>
-                <p>Select a friend from the Friends tab to start chatting.</p>
+                <p>Select a friend or server to start chatting.</p>
             </div>
 
-            <!-- Active DM view (Hidden by default) -->
+            <!-- Active Chat View -->
             <div id="dm-active-chat" style="display: none; flex: 1; flex-direction: column; height: 100%;">
                 <div class="chat-header">
                     <div class="chat-title">
                         <div class="avatar" id="dm-chat-avatar" style="width: 32px; height: 32px; font-size: 0.9rem; background: #5865F2;">U</div>
                         <span id="dm-chat-name">User</span>
                     </div>
+                    
+                    <!-- User Profile Panel (Top Right) -->
+                    <div class="user-panel-top">
+                        <div class="avatar" id="user-avatar" style="width: 32px; height: 32px; font-size: 0.9rem; background: #23a559;">U</div>
+                        <div>
+                            <div style="font-size: 0.9rem; font-weight: bold;" id="user-display-name">Loading...</div>
+                            <div class="status">Online</div>
+                        </div>
+                        <div class="user-controls-top">
+                            <i class="fa-solid fa-gear" id="settings-btn" style="cursor: pointer;"></i>
+                        </div>
+                    </div>
                 </div>
                 
-                <div class="chat-messages" id="dm-messages-container">
-                    <!-- Messages will appear here -->
-                </div>
+                <div class="chat-messages" id="dm-messages-container"></div>
                 
                 <div class="chat-input-wrapper">
                     <div class="chat-input">
@@ -101,18 +92,30 @@
             </div>
         </div>
 
-        <!-- Main Chat Area (Friends View) -->
+        <!-- 4. Friends View -->
         <div class="chat-area" id="view-friends" style="display: none;">
             <div class="chat-header">
                 <div class="chat-title"><i class="fa-solid fa-user-group" style="margin-right: 8px;"></i> Friends</div>
+                
+                <!-- User Profile Panel (Top Right) -->
+                <div class="user-panel-top">
+                    <div class="avatar" id="user-avatar-friends" style="width: 32px; height: 32px; font-size: 0.9rem; background: #23a559;">U</div>
+                    <div>
+                        <div style="font-size: 0.9rem; font-weight: bold;" id="user-display-name-friends">Loading...</div>
+                        <div class="status">Online</div>
+                    </div>
+                    <div class="user-controls-top">
+                        <i class="fa-solid fa-gear" id="settings-btn-friends" style="cursor: pointer;"></i>
+                    </div>
+                </div>
             </div>
             <div style="padding: 32px; flex: 1; overflow-y: auto;">
                 <div style="display: flex; gap: 12px; margin-bottom: 32px;">
-                    <input type="text" id="friend-search" placeholder="Enter a username to add..." style="flex: 1; padding: 12px 16px; background: var(--bg-input); border: 1px solid var(--border-color); border-radius: 8px; color: white; outline: none; font-size: 1rem;">
-                    <button style="background: var(--accent); color: white; border: none; padding: 0 24px; border-radius: 8px; font-weight: 700; cursor: pointer; transition: 0.2s;" onmouseover="this.style.background='var(--accent-hover)'" onmouseout="this.style.background='var(--accent)'" onclick="addFriend()">Send Request</button>
+                    <input type="text" id="friend-search" placeholder="Enter a username to add..." style="flex: 1; padding: 12px 16px; background: var(--bg-input); border: 1px solid var(--glass-border); border-radius: 12px; color: white; outline: none; font-size: 1rem;">
+                    <button style="background: var(--accent); color: white; border: none; padding: 0 24px; border-radius: 12px; font-weight: 700; cursor: pointer; transition: 0.2s;" onmouseover="this.style.background='var(--accent-hover)'" onmouseout="this.style.background='var(--accent)'" onclick="addFriend()">Send Request</button>
                 </div>
                 
-                <h3 style="font-size: 0.8rem; color: var(--text-muted); text-transform: uppercase; margin-bottom: 16px; letter-spacing: 0.5px;">Your Friends</h3>
+                <h3 style="font-size: 0.8rem; color: var(--text-muted); text-transform: uppercase; margin-bottom: 16px; letter-spacing: 1px;">Your Friends</h3>
                 <div id="friends-list">
                     <p style="color: var(--text-muted); font-size: 0.9rem;">You don't have any friends yet. Add some!</p>
                 </div>
@@ -144,17 +147,14 @@
         </div>
     </div>
 
-    <!-- Explore Servers Modal -->
+    <!-- Explore Modal -->
     <div class="modal-overlay" id="explore-modal">
         <div class="settings-modal" style="height: 600px;">
             <button class="settings-close" id="close-explore">&times;</button>
             <div class="settings-content" style="width: 100%;">
                 <h2>Explore Servers</h2>
                 <p style="color: var(--text-muted); margin-bottom: 20px;">Find your community and join the conversation.</p>
-                
-                <div id="public-servers-list" style="display: flex; flex-direction: column; gap: 12px;">
-                    <!-- Servers will be injected here -->
-                </div>
+                <div id="public-servers-list" style="display: flex; flex-direction: column; gap: 12px;"></div>
             </div>
         </div>
     </div>
