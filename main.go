@@ -40,7 +40,7 @@ func initDB() {
 		UNIQUE(user1, user2)
 	);`
 
-	// Create Messages Table
+	// Create Messages Table (Handles both DMs and Server Channels)
 	createMessagesTable := `CREATE TABLE IF NOT EXISTS messages (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
 		sender TEXT,
@@ -93,9 +93,15 @@ func main() {
 	http.HandleFunc("/api/messages/send", handleSendMessage)
 	http.HandleFunc("/api/messages/get", handleGetMessages)
 	http.HandleFunc("/api/profile/update", handleUpdateProfile)
+	
+	// Server Routes
 	http.HandleFunc("/api/servers/create", handleCreateServer)
 	http.HandleFunc("/api/servers/get", handleGetServers)
 	http.HandleFunc("/api/channels/get", handleGetChannels)
+	http.HandleFunc("/api/server-messages/send", handleSendServerMessage)
+	http.HandleFunc("/api/server-messages/get", handleGetServerMessages)
+	
+	// WebSocket
 	http.HandleFunc("/ws", handleConnections)
 
 	port := ":8080"
@@ -172,13 +178,8 @@ func handleLogin(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]string{"username": username})
 }
 
-// --- Profile Update API ---
+// --- Profile API ---
 func handleUpdateProfile(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
 	var req struct {
 		OldUsername string `json:"old_username"`
 		NewUsername string `json:"new_username"`
@@ -195,7 +196,6 @@ func handleUpdateProfile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	fmt.Printf("👤 %s updated profile to %s\n", req.OldUsername, req.NewUsername)
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]string{"message": "Profile updated"})
 }
@@ -251,18 +251,12 @@ func handleFriends(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		
-		fmt.Printf("🤝 %s added %s as a friend.\n", req.User, req.Friend)
 		w.WriteHeader(http.StatusOK)
 	}
 }
 
-// --- Messages API ---
+// --- DM Messages API ---
 func handleSendMessage(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
 	var req struct {
 		Sender   string `json:"sender"`
 		Receiver string `json:"receiver"`
@@ -321,7 +315,7 @@ func handleGetMessages(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(messages)
 }
 
-// --- Servers API ---
+// --- Servers & Channels API ---
 func handleCreateServer(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Name  string `json:"name"`
@@ -374,4 +368,46 @@ func handleGetChannels(w http.ResponseWriter, r *http.Request) {
 	}
 	if channels == nil { channels = []map[string]interface{}{} }
 	json.NewEncoder(w).Encode(channels)
+}
+
+// --- Server Channel Messages API ---
+func handleSendServerMessage(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		ChannelID int    `json:"channel_id"`
+		Sender    string `json:"sender"`
+		Content   string `json:"content"`
+	}
+	json.NewDecoder(r.Body).Decode(&req)
+
+	dbMu.Lock()
+	_, err := db.Exec("INSERT INTO messages (sender, receiver, content) VALUES (?, ?, ?)", req.Sender, fmt.Sprintf("channel_%d", req.ChannelID), req.Content)
+	dbMu.Unlock()
+
+	if err != nil {
+		http.Error(w, "Error saving message", http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+}
+
+func handleGetServerMessages(w http.ResponseWriter, r *http.Request) {
+	channelID := r.URL.Query().Get("channel_id")
+	receiver := fmt.Sprintf("channel_%s", channelID)
+
+	rows, err := db.Query("SELECT sender, content FROM messages WHERE receiver = ? ORDER BY timestamp ASC", receiver)
+	if err != nil {
+		http.Error(w, "Database error", http.StatusInternalServerError)
+		return
+	}
+	defer rows.Close()
+
+	var messages []map[string]string
+	for rows.Next() {
+		var sender, content string
+		rows.Scan(&sender, &content)
+		messages = append(messages, map[string]string{"sender": sender, "content": content})
+	}
+	
+	if messages == nil { messages = []map[string]string{} }
+	json.NewEncoder(w).Encode(messages)
 }
