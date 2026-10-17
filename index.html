@@ -24,7 +24,7 @@
         <div class="nav-links">
             <a href="#">Download</a>
             <a href="#">Developers</a>
-            <a href="app.html" class="btn-login">Log in</a>
+            <a href="login.html" class="btn-login">Create An Account</a>
         </div>
     </nav>
 
@@ -33,14 +33,14 @@
             <h1>Your group chat,<br>with room to<br>hang out.</h1>
             <p>Chat Hub is where your friends and communities talk, call and share their screens. All of it free, including the stuff other apps make you pay for.</p>
             <div class="hero-buttons">
-                <a href="app.html" class="btn-primary" style="text-decoration: none;">Open Chat Hub in your browser</a>
-                <a href="app.html" class="btn-secondary" style="text-decoration: none;">Log in</a>
+                <a href="app.html" class="btn-primary" style="display: inline-block; text-decoration: none;">Open Chat Hub in your browser</a>
+                <a href="login.html" class="btn-secondary" style="display: inline-block; text-decoration: none;">Create An Account</a>
             </div>
         </div>
 
         <div class="mockup-container">
             <div class="mockup-sidebar">
-                <div class="mockup-server-name">Game Night</div>
+                <div class="mockup-server-name">Chat Hub Community</div>
                 <div class="mockup-channel active"># general</div>
                 <div class="mockup-channel"># memes</div>
                 <div class="mockup-channel"># clips</div>
@@ -50,24 +50,24 @@
                 <div class="mockup-header"># general</div>
                 <div class="mockup-messages">
                     <div class="mockup-msg">
-                        <div class="avatar m">M</div>
+                        <div class="avatar m">A</div>
                         <div class="msg-content">
-                            <strong style="color: #9b59b6;">mika</strong>
-                            <p>anyone up for a match tonight?</p>
+                            <strong style="color: #9b59b6;">alex</strong>
+                            <p>does anyone want to hop on voice and play some games?</p>
                         </div>
                     </div>
                     <div class="mockup-msg">
-                        <div class="avatar j">J</div>
+                        <div class="avatar j">S</div>
                         <div class="msg-content">
-                            <strong style="color: #3498db;">jules</strong>
-                            <p>yes!! already in Lounge</p>
+                            <strong style="color: #3498db;">sarah</strong>
+                            <p>I'm down! Let me just finish this assignment.</p>
                         </div>
                     </div>
                     <div class="mockup-msg">
-                        <div class="avatar r">R</div>
+                        <div class="avatar r">L</div>
                         <div class="msg-content">
-                            <strong style="color: #2ecc71;">rae</strong>
-                            <p>streaming my screen, come watch me lose 😭</p>
+                            <strong style="color: #2ecc71;">leo</strong>
+                            <p>Check out this clip I just recorded 🔥</p>
                         </div>
                     </div>
                 </div>
@@ -77,7 +77,7 @@
 
     <section class="stats">
         <div class="stats-dot"></div>
-        1,045 <span>people online now</span>
+        <span id="online-count" style="font-size: 3rem; color: white;">1</span> <span>people online now</span>
     </section>
 
     <section class="features-grid">
@@ -105,10 +105,11 @@
     </section>
 
     <section class="cta-bottom">
-        <h2>Come yap.</h2>
+        <h2>Come chat or make friends.</h2>
         <p>Making an account takes a minute. No card, no trial, no catch.</p>
-        <a href="app.html" class="btn-primary" style="padding: 16px 40px; font-size: 1.1rem; text-decoration: none;">Open Chat Hub in your browser</a>
+        <a href="login.html" class="btn-primary" style="display: inline-block; padding: 16px 40px; font-size: 1.1rem; text-decoration: none;">Create An Account</a>
     </section>
 
+    <script src="app.js"></script> 
 </body>
 </html>
