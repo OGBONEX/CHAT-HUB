@@ -1,3 +1,5 @@
+let activeChatUser = null; // Tracks who you are currently messaging
+
 document.addEventListener("DOMContentLoaded", () => {
     // --- 1. Load User Data ---
     let currentUsername = localStorage.getItem("chathub_username") || "User";
@@ -10,13 +12,11 @@ document.addEventListener("DOMContentLoaded", () => {
     if (settingsUsername) settingsUsername.value = currentUsername;
     if (userAvatar) userAvatar.innerText = currentUsername.charAt(0).toUpperCase();
 
-    // --- 2. Navigation Logic (DMs vs Friends) ---
+    // --- 2. Navigation Logic ---
     const navFriends = document.getElementById("nav-friends");
     const navDms = document.getElementById("nav-dms");
     const viewFriends = document.getElementById("view-friends");
     const viewDms = document.getElementById("view-dms");
-    const dmCategory = document.getElementById("dm-category");
-    const dmListContainer = document.getElementById("dm-list-container");
 
     if (navFriends && navDms) {
         navFriends.addEventListener("click", () => {
@@ -24,8 +24,6 @@ document.addEventListener("DOMContentLoaded", () => {
             navDms.classList.remove("active");
             viewFriends.style.display = "flex";
             viewDms.style.display = "none";
-            if(dmCategory) dmCategory.style.display = "none";
-            if(dmListContainer) dmListContainer.style.display = "none";
         });
 
         navDms.addEventListener("click", () => {
@@ -33,48 +31,92 @@ document.addEventListener("DOMContentLoaded", () => {
             navFriends.classList.remove("active");
             viewDms.style.display = "flex";
             viewFriends.style.display = "none";
-            if(dmCategory) dmCategory.style.display = "block";
-            if(dmListContainer) dmListContainer.style.display = "block";
         });
     }
 
-    // --- 3. Settings Modal Logic ---
+    // --- 3. DM Input Logic ---
+    const dmInput = document.getElementById("dm-message-input");
+    const dmContainer = document.getElementById("dm-messages-container");
+
+    if (dmInput) {
+        dmInput.addEventListener("keypress", (e) => {
+            if (e.key === "Enter" && dmInput.value.trim() !== "" && activeChatUser) {
+                const text = dmInput.value.trim();
+                
+                // Add message to screen
+                appendDMMessage("You", text, "#5865F2");
+                
+                // (In a real app, you would send this to the WebSocket/Backend here)
+                
+                dmInput.value = "";
+            }
+        });
+    }
+
+    // --- 4. Settings Logic ---
     const settingsBtn = document.getElementById("settings-btn");
     const settingsModal = document.getElementById("settings-modal");
     const closeSettings = document.getElementById("close-settings");
 
     if (settingsBtn) settingsBtn.addEventListener("click", () => settingsModal.classList.add("active"));
     if (closeSettings) closeSettings.addEventListener("click", () => settingsModal.classList.remove("active"));
-    
-    if (settingsModal) {
-        settingsModal.addEventListener("click", (e) => {
-            if (e.target === settingsModal) settingsModal.classList.remove("active");
-        });
-    }
-
-    // Settings Tabs logic
-    const tabs = document.querySelectorAll(".settings-tab");
-    tabs.forEach(tab => {
-        tab.addEventListener("click", function() {
-            tabs.forEach(t => t.classList.remove("active"));
-            this.classList.add("active");
-        });
-    });
 });
 
-// --- 4. Add Friend Logic ---
+// --- 5. Open a Chat from the Friends List ---
+function openChat(friendName) {
+    activeChatUser = friendName;
+    
+    // Switch to DM view
+    document.getElementById("nav-dms").click();
+
+    // Hide empty state, show chat
+    document.getElementById("dm-empty-state").style.display = "none";
+    const activeChat = document.getElementById("dm-active-chat");
+    activeChat.style.display = "flex";
+
+    // Update header
+    document.getElementById("dm-chat-name").innerText = friendName;
+    document.getElementById("dm-chat-avatar").innerText = friendName.charAt(0).toUpperCase();
+    document.getElementById("dm-message-input").placeholder = `Message @${friendName}`;
+
+    // Clear previous messages
+    document.getElementById("dm-messages-container").innerHTML = "";
+    
+    // Add a dummy welcome message
+    appendDMMessage(friendName, "Hey! This is the start of your direct message history.", "#5865F2");
+}
+
+// --- 6. Append message to DM screen ---
+function appendDMMessage(author, text, color) {
+    const container = document.getElementById("dm-messages-container");
+    const msgDiv = document.createElement("div");
+    msgDiv.className = "message";
+    
+    msgDiv.innerHTML = `
+        <div class="avatar" style="background: ${color};">${author.charAt(0).toUpperCase()}</div>
+        <div class="message-content">
+            <div class="message-header">
+                <span class="author" style="color: ${color};">${author}</span>
+                <span class="time">Just now</span>
+            </div>
+            <div class="text">${text}</div>
+        </div>
+    `;
+    container.appendChild(msgDiv);
+    container.scrollTop = container.scrollHeight;
+}
+
+// --- 7. Friends Logic ---
 async function addFriend() {
     const friendName = document.getElementById("friend-search").value.trim();
     if (!friendName) return;
 
     const currentUser = localStorage.getItem("chathub_username") || "User";
-
     if (friendName.toLowerCase() === currentUser.toLowerCase()) {
         alert("You can't add yourself!");
         return;
     }
 
-    // Send to Go backend
     try {
         const response = await fetch("/api/friends", {
             method: "POST",
@@ -86,16 +128,12 @@ async function addFriend() {
             const data = await response.json();
             renderFriendsList(data.friends);
             document.getElementById("friend-search").value = "";
-        } else {
-            alert("Failed to add friend.");
         }
     } catch (err) {
-        console.error("Error adding friend:", err);
-        alert("Could not connect to server.");
+        console.error(err);
     }
 }
 
-// --- 5. Render Friends List ---
 function renderFriendsList(friends) {
     const friendsList = document.getElementById("friends-list");
     if (!friendsList) return;
@@ -110,18 +148,20 @@ function renderFriendsList(friends) {
     friends.forEach(friendName => {
         const friendDiv = document.createElement("div");
         friendDiv.style.cssText = "display: flex; align-items: center; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--hover);";
+        
+        // Added onclick="openChat('${friendName}')" to the button!
         friendDiv.innerHTML = `
             <div style="display: flex; align-items: center; gap: 10px;">
                 <div class="avatar" style="background: #5865F2;">${friendName.charAt(0).toUpperCase()}</div>
                 <span style="font-weight: bold;">${friendName}</span>
             </div>
-            <button style="background: #23a559; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer;">Message</button>
+            <button onclick="openChat('${friendName}')" style="background: #23a559; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer;">Message</button>
         `;
         friendsList.appendChild(friendDiv);
     });
 }
 
-// --- 6. Save Profile Logic ---
+// --- 8. Save/Logout Logic ---
 function saveProfile() {
     const newName = document.getElementById("settings-username").value.trim();
     if (newName) {
@@ -133,7 +173,6 @@ function saveProfile() {
     }
 }
 
-// --- 7. Logout Logic ---
 function logout() {
     localStorage.removeItem("chathub_username");
     window.location.href = "index.html";
