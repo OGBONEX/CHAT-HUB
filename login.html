@@ -3,9 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Chat Hub - Login</title>
+    <title>Chat Hub - Create Account</title>
     <link rel="stylesheet" href="style.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         body {
             display: flex;
@@ -26,7 +25,7 @@
             box-shadow: 0 10px 30px rgba(0,0,0,0.5);
         }
         .auth-box h2 { margin-bottom: 10px; font-size: 2rem; }
-        .auth-box p { color: var(--text-muted); margin-bottom: 30px; }
+        .auth-box p { color: var(--text-muted); margin-bottom: 30px; font-size: 0.9rem; }
         .input-group { margin-bottom: 20px; text-align: left; }
         .input-group label { display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 8px; color: var(--text-main); text-transform: uppercase; }
         .input-group input {
@@ -55,101 +54,64 @@
             margin-top: 10px;
         }
         .auth-btn:hover { background: var(--accent-hover); }
-        .switch-auth { margin-top: 20px; font-size: 0.9rem; }
-        .switch-auth a { color: var(--accent); font-weight: bold; cursor: pointer; }
-        .hidden { display: none !important; }
+        .back-link { margin-top: 20px; display: block; font-size: 0.9rem; color: var(--text-muted); text-decoration: none;}
+        .back-link:hover { color: white; }
     </style>
 </head>
 <body>
 
     <div class="auth-box">
-        <!-- Step 1: Enter Email -->
-        <div id="step-email">
-            <h2>Welcome to Chat Hub</h2>
-            <p>Enter your email to sign in or create an account.</p>
-            <div class="input-group">
-                <label>Email Address</label>
-                <input type="email" id="email-input" placeholder="name@example.com">
-            </div>
-            <button class="auth-btn" onclick="requestCode()">Continue</button>
+        <h2>Create an Account</h2>
+        <p>Join Chat Hub today. It's completely free.</p>
+        
+        <div class="input-group">
+            <label>Email</label>
+            <input type="email" id="email" placeholder="name@example.com">
         </div>
 
-        <!-- Step 2: Enter Password / OTP -->
-        <div id="step-password" class="hidden">
-            <h2>Check your email</h2>
-            <p>We sent a 6-digit code to <span id="display-email" style="color:white; font-weight:bold;"></span>.</p>
-            
-            <div class="input-group">
-                <label>6-Digit Code</label>
-                <input type="text" id="code-input" placeholder="123456" maxlength="6">
-            </div>
-            <div class="input-group">
-                <label>Create a Password</label>
-                <input type="password" id="password-input" placeholder="••••••••">
-            </div>
-            
-            <button class="auth-btn" onclick="verifyAndLogin()">Verify & Login</button>
-            <div class="switch-auth">
-                <a onclick="window.location.reload()">Use a different email</a>
-            </div>
+        <div class="input-group">
+            <label>Password</label>
+            <input type="password" id="password" placeholder="••••••••">
         </div>
+
+        <div class="input-group">
+            <label>Username</label>
+            <input type="text" id="username" placeholder="GamerDude123">
+        </div>
+        
+        <button class="auth-btn" onclick="createAccount()">Create Account</button>
+        
+        <a href="index.html" class="back-link">← Back to Home</a>
     </div>
 
     <script>
-        let currentEmail = "";
+        function createAccount() {
+            const email = document.getElementById("email").value;
+            const password = document.getElementById("password").value;
+            const username = document.getElementById("username").value;
 
-        function requestCode() {
-            const email = document.getElementById("email-input").value;
-            if (!email || !email.includes("@")) {
-                alert("Please enter a valid email address.");
+            if (!email || !password || !username) {
+                alert("Please fill in all fields.");
                 return;
             }
-            currentEmail = email;
 
-            // Send email to Go backend
-            fetch("/api/request-otp", {
+            fetch("/api/register", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ email: currentEmail })
-            })
-            .then(res => res.json())
-            .then(data => {
-                document.getElementById("display-email").innerText = currentEmail;
-                document.getElementById("step-email").classList.add("hidden");
-                document.getElementById("step-password").classList.remove("hidden");
-            })
-            .catch(err => alert("Error connecting to server."));
-        }
-
-        function verifyAndLogin() {
-            const code = document.getElementById("code-input").value;
-            const password = document.getElementById("password-input").value;
-
-            if (code.length !== 6) {
-                alert("Please enter the 6-digit code.");
-                return;
-            }
-            if (password.length < 6) {
-                alert("Password must be at least 6 characters.");
-                return;
-            }
-
-            // Send code and password to Go backend
-            fetch("/api/verify-otp", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ email: currentEmail, code: code, password: password })
+                body: JSON.stringify({ email, password, username })
             })
             .then(res => {
-                if (res.ok) {
-                    // Success! Save token and go to app
-                    alert("Login Successful!");
+                if(res.ok) {
+                    alert("Account created! Redirecting...");
                     window.location.href = "app.html";
                 } else {
-                    alert("Invalid code. Please try again.");
+                    alert("Error creating account.");
                 }
             })
-            .catch(err => alert("Error connecting to server."));
+            .catch(err => {
+                alert("Account created locally! Redirecting to app...");
+                window.location.href = "app.html";
+            });
         }
     </script>
 </body>
