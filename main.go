@@ -13,7 +13,15 @@ import (
 var upgrader = websocket.Upgrader{CheckOrigin: func(r *http.Request) bool { return true }}
 type Client struct { conn *websocket.Conn }
 var (clients = make(map[*Client]bool); clientsMu sync.Mutex)
+
+// --- Chat & Friends Data ---
 type Message struct { Author string `json:"author"`; Text string `json:"text"`; Color string `json:"color"`; Type string `json:"type"` }
+
+// In-memory Friends Store
+var (
+	friendsStore = make(map[string][]string) // map[username][]friends
+	friendsMu    sync.RWMutex
+)
 
 func main() {
 	fs := http.FileServer(http.Dir("./"))
@@ -25,8 +33,11 @@ func main() {
 		fs.ServeHTTP(w, r)
 	})
 
+	// APIs
 	http.HandleFunc("/api/request-otp", handleRequestOTP)
 	http.HandleFunc("/api/verify-otp", handleVerifyOTP)
+	http.HandleFunc("/api/register", handleRegister)
+	http.HandleFunc("/api/friends", handleFriends) // NEW: Friends API
 	http.HandleFunc("/ws", handleConnections)
 
 	port := ":8080"
@@ -59,50 +70,60 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// --- AUTHENTICATION ---
+// --- FRIENDS API ---
+func handleFriends(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req struct {
+		User   string `json:"user"`
+		Friend string `json:"friend"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Bad request", http.StatusBadRequest)
+		return
+	}
+
+	friendsMu.Lock()
+	defer friendsMu.Unlock()
+
+	// Add friend to user's list (prevent duplicates)
+	isDuplicate := false
+	for _, f := range friendsStore[req.User] {
+		if f == req.Friend {
+			isDuplicate = true
+			break
+		}
+	}
+
+	if !isDuplicate && req.User != req.Friend {
+		friendsStore[req.User] = append(friendsStore[req.User], req.Friend)
+		fmt.Printf("🤝 %s added %s as a friend.\n", req.User, req.Friend)
+	}
+
+	// Return the updated list
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string][]string{"friends": friendsStore[req.User]})
+}
+
+// --- AUTHENTICATION & REGISTER (From previous steps) ---
 var otpStore = make(map[string]string)
 var otpMutex sync.RWMutex
+type AuthRequest struct { Email string `json:"email"`; Code string `json:"code"`; Password string `json:"password"` }
+func handleRequestOTP(w http.ResponseWriter, r *http.Request) { /* ... keep your existing code ... */ }
+func handleVerifyOTP(w http.ResponseWriter, r *http.Request) { /* ... keep your existing code ... */ }
 
-type AuthRequest struct {
-	Email    string `json:"email"`
-	Code     string `json:"code"`
-	Password string `json:"password"`
-}
-
-func handleRequestOTP(w http.ResponseWriter, r *http.Request) {
-	var req AuthRequest
-	json.NewDecoder(r.Body).Decode(&req)
-	
-	// Generate a fake code (In real life, use Brevo here)
-	fakeCode := "123456"
-	
-	otpMutex.Lock()
-	otpStore[req.Email] = fakeCode
-	otpMutex.Unlock()
-	
-	fmt.Printf("✉️ [MOCK EMAIL] Sent code %s to %s\n", fakeCode, req.Email)
-	
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{"message": "OTP sent"})
-}
-
-func handleVerifyOTP(w http.ResponseWriter, r *http.Request) {
-	var req AuthRequest
-	json.NewDecoder(r.Body).Decode(&req)
-	
-	otpMutex.RLock()
-	savedCode := otpStore[req.Email]
-	otpMutex.RUnlock()
-	
-	if savedCode == req.Code && savedCode != "" {
-		// Delete the OTP after success
-		otpMutex.Lock(); delete(otpStore, req.Email); otpMutex.Unlock()
-		
-		fmt.Printf("✅ User %s successfully registered with password.\n", req.Email)
-		
-		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(map[string]string{"token": "fake-jwt-token"})
-	} else {
-		http.Error(w, "Invalid code", http.StatusUnauthorized)
+func handleRegister(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Email    string `json:"email"`
+		Password string `json:"password"`
+		Username string `json:"username"`
 	}
+	json.NewDecoder(r.Body).Decode(&req)
+	fmt.Printf("👤 New Account Created: %s (%s)\n", req.Username, req.Email)
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]string{"message": "Account created"})
 }
