@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"sync"
 
+	"github.com/gorilla/websocket"
 	_ "github.com/mattn/go-sqlite3"
 )
 
@@ -27,7 +28,8 @@ func initDB() {
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
 		username TEXT UNIQUE,
 		email TEXT UNIQUE,
-		password TEXT
+		password TEXT,
+		color TEXT DEFAULT '#5865F2'
 	);`
 	
 	// Create Friends Table
@@ -38,8 +40,35 @@ func initDB() {
 		UNIQUE(user1, user2)
 	);`
 
+	// Create Messages Table
+	createMessagesTable := `CREATE TABLE IF NOT EXISTS messages (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		sender TEXT,
+		receiver TEXT,
+		content TEXT,
+		timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+	);`
+
+	// Create Servers Table
+	createServersTable := `CREATE TABLE IF NOT EXISTS servers (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		name TEXT,
+		owner TEXT
+	);`
+	
+	// Create Channels Table
+	createChannelsTable := `CREATE TABLE IF NOT EXISTS channels (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		server_id INTEGER,
+		name TEXT,
+		type TEXT DEFAULT 'text'
+	);`
+
 	db.Exec(createUsersTable)
 	db.Exec(createFriendsTable)
+	db.Exec(createMessagesTable)
+	db.Exec(createServersTable)
+	db.Exec(createChannelsTable)
 	fmt.Println("💾 Database connected and tables created.")
 }
 
@@ -61,10 +90,45 @@ func main() {
 	http.HandleFunc("/api/register", handleRegister)
 	http.HandleFunc("/api/login", handleLogin)
 	http.HandleFunc("/api/friends", handleFriends)
+	http.HandleFunc("/api/messages/send", handleSendMessage)
+	http.HandleFunc("/api/messages/get", handleGetMessages)
+	http.HandleFunc("/api/profile/update", handleUpdateProfile)
+	http.HandleFunc("/api/servers/create", handleCreateServer)
+	http.HandleFunc("/api/servers/get", handleGetServers)
+	http.HandleFunc("/api/channels/get", handleGetChannels)
+	http.HandleFunc("/ws", handleConnections)
 
 	port := ":8080"
 	fmt.Printf("🚀 Chat Hub backend started at http://localhost%s\n", port)
 	log.Fatal(http.ListenAndServe(port, nil))
+}
+
+// --- WebSocket Hub ---
+var upgrader = websocket.Upgrader{CheckOrigin: func(r *http.Request) bool { return true }}
+type Client struct { conn *websocket.Conn; username string }
+var (clients = make(map[*Client]bool); clientsMu sync.Mutex)
+
+func handleConnections(w http.ResponseWriter, r *http.Request) {
+	username := r.URL.Query().Get("user")
+	if username == "" { return }
+
+	ws, err := upgrader.Upgrade(w, r, nil)
+	if err != nil { return }
+	defer ws.Close()
+
+	client := &Client{conn: ws, username: username}
+	clientsMu.Lock(); clients[client] = true; clientsMu.Unlock()
+
+	defer func() {
+		clientsMu.Lock(); delete(clients, client); clientsMu.Unlock()
+	}()
+
+	for {
+		if _, _, err := ws.ReadMessage(); err != nil {
+			clientsMu.Lock(); delete(clients, client); clientsMu.Unlock()
+			break
+		}
+	}
 }
 
 // --- Register & Login ---
@@ -108,10 +172,37 @@ func handleLogin(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]string{"username": username})
 }
 
-// --- Friends ---
+// --- Profile Update API ---
+func handleUpdateProfile(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req struct {
+		OldUsername string `json:"old_username"`
+		NewUsername string `json:"new_username"`
+		NewColor    string `json:"new_color"`
+	}
+	json.NewDecoder(r.Body).Decode(&req)
+
+	dbMu.Lock()
+	_, err := db.Exec("UPDATE users SET username = ?, color = ? WHERE username = ?", req.NewUsername, req.NewColor, req.OldUsername)
+	dbMu.Unlock()
+
+	if err != nil {
+		http.Error(w, "Username already taken or database error", http.StatusConflict)
+		return
+	}
+
+	fmt.Printf("👤 %s updated profile to %s\n", req.OldUsername, req.NewUsername)
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]string{"message": "Profile updated"})
+}
+
+// --- Friends API ---
 func handleFriends(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodGet {
-		// Get friends for a user
 		user := r.URL.Query().Get("user")
 		rows, err := db.Query("SELECT user2 FROM friends WHERE user1 = ?", user)
 		if err != nil {
@@ -144,7 +235,6 @@ func handleFriends(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		// Check if friend exists in users table
 		var exists int
 		db.QueryRow("SELECT COUNT(*) FROM users WHERE username = ?", req.Friend).Scan(&exists)
 		if exists == 0 {
@@ -164,4 +254,124 @@ func handleFriends(w http.ResponseWriter, r *http.Request) {
 		fmt.Printf("🤝 %s added %s as a friend.\n", req.User, req.Friend)
 		w.WriteHeader(http.StatusOK)
 	}
+}
+
+// --- Messages API ---
+func handleSendMessage(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req struct {
+		Sender   string `json:"sender"`
+		Receiver string `json:"receiver"`
+		Content  string `json:"content"`
+	}
+	json.NewDecoder(r.Body).Decode(&req)
+
+	dbMu.Lock()
+	_, err := db.Exec("INSERT INTO messages (sender, receiver, content) VALUES (?, ?, ?)", req.Sender, req.Receiver, req.Content)
+	dbMu.Unlock()
+
+	if err != nil {
+		http.Error(w, "Error saving message", http.StatusInternalServerError)
+		return
+	}
+
+	clientsMu.Lock()
+	for c := range clients {
+		if c.username == req.Receiver || c.username == req.Sender {
+			c.conn.WriteJSON(map[string]string{
+				"type":     "new_message",
+				"sender":   req.Sender,
+				"receiver": req.Receiver,
+				"content":  req.Content,
+			})
+		}
+	}
+	clientsMu.Unlock()
+
+	w.WriteHeader(http.StatusOK)
+}
+
+func handleGetMessages(w http.ResponseWriter, r *http.Request) {
+	user1 := r.URL.Query().Get("user1")
+	user2 := r.URL.Query().Get("user2")
+
+	rows, err := db.Query(`
+		SELECT sender, content FROM messages 
+		WHERE (sender = ? AND receiver = ?) OR (sender = ? AND receiver = ?)
+		ORDER BY timestamp ASC`, user1, user2, user2, user1)
+	
+	if err != nil {
+		http.Error(w, "Database error", http.StatusInternalServerError)
+		return
+	}
+	defer rows.Close()
+
+	var messages []map[string]string
+	for rows.Next() {
+		var sender, content string
+		rows.Scan(&sender, &content)
+		messages = append(messages, map[string]string{"sender": sender, "content": content})
+	}
+	
+	if messages == nil { messages = []map[string]string{} }
+	json.NewEncoder(w).Encode(messages)
+}
+
+// --- Servers API ---
+func handleCreateServer(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Name  string `json:"name"`
+		Owner string `json:"owner"`
+	}
+	json.NewDecoder(r.Body).Decode(&req)
+
+	dbMu.Lock()
+	res, err := db.Exec("INSERT INTO servers (name, owner) VALUES (?, ?)", req.Name, req.Owner)
+	if err != nil {
+		dbMu.Unlock()
+		http.Error(w, "Error creating server", http.StatusInternalServerError)
+		return
+	}
+	serverID, _ := res.LastInsertId()
+	db.Exec("INSERT INTO channels (server_id, name) VALUES (?, ?)", serverID, "general")
+	dbMu.Unlock()
+
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]interface{}{"server_id": serverID})
+}
+
+func handleGetServers(w http.ResponseWriter, r *http.Request) {
+	owner := r.URL.Query().Get("owner")
+	rows, _ := db.Query("SELECT id, name FROM servers WHERE owner = ?", owner)
+	defer rows.Close()
+
+	var servers []map[string]interface{}
+	for rows.Next() {
+		var id int
+		var name string
+		rows.Scan(&id, &name)
+		servers = append(servers, map[string]interface{}{"id": id, "name": name})
+	}
+	if servers == nil { servers = []map[string]interface{}{} }
+	json.NewEncoder(w).Encode(servers)
+}
+
+func handleGetChannels(w http.ResponseWriter, r *http.Request) {
+	serverID := r.URL.Query().Get("server_id")
+	rows, _ := db.Query("SELECT id, name FROM channels WHERE server_id = ?", serverID)
+	defer rows.Close()
+
+	var channels []map[string]interface{}
+	for rows.Next() {
+		var id int
+		var name string
+		rows.Scan(&id, &name)
+		channels = append(channels, map[string]interface{}{"id": id, "name": name})
+	}
+	if channels == nil { channels = []map[string]interface{}{} }
+	json.NewEncoder(w).Encode(channels)
 }
