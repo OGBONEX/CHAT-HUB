@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat Hub - Create Account</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            background-color: var(--bg-main);
+        }
+        .auth-box {
+            background: var(--bg-panel);
+            padding: 40px;
+            border-radius: 12px;
+            width: 100%;
+            max-width: 420px;
+            border: 1px solid var(--border-color);
+            text-align: center;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+        .auth-box h2 { margin-bottom: 10px; font-size: 2rem; }
+        .auth-box p { color: var(--text-muted); margin-bottom: 30px; font-size: 0.9rem; }
+        .input-group { margin-bottom: 20px; text-align: left; }
+        .input-group label { display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 8px; color: var(--text-main); text-transform: uppercase; }
+        .input-group input {
+            width: 100%;
+            padding: 12px 16px;
+            background: var(--bg-main);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            color: white;
+            font-size: 1rem;
+            outline: none;
+            transition: border 0.2s;
+        }
+        .input-group input:focus { border-color: var(--accent); }
+        .auth-btn {
+            width: 100%;
+            background: var(--accent);
+            color: white;
+            padding: 14px;
+            border: none;
+            border-radius: 6px;
+            font-size: 1rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background 0.2s;
+            margin-top: 10px;
+        }
+        .auth-btn:hover { background: var(--accent-hover); }
+        .switch-auth { margin-top: 20px; font-size: 0.9rem; color: var(--text-muted); }
+        .switch-auth a { color: var(--accent); font-weight: bold; text-decoration: none; }
+        .switch-auth a:hover { text-decoration: underline; }
+        .back-link { margin-top: 15px; display: block; font-size: 0.9rem; color: var(--text-muted); text-decoration: none;}
+        .back-link:hover { color: white; }
+    </style>
+</head>
+<body>
+
+    <div class="auth-box">
+        <h2>Create an Account</h2>
+        <p>Join Chat Hub today. It's completely free.</p>
+        
+        <div class="input-group">
+            <label>Email</label>
+            <input type="email" id="email" placeholder="name@example.com">
+        </div>
+
+        <div class="input-group">
+            <label>Password</label>
+            <input type="password" id="password" placeholder="••••••••">
+        </div>
+
+        <div class="input-group">
+            <label>Username</label>
+            <input type="text" id="username" placeholder="GamerDude123">
+        </div>
+        
+        <button class="auth-btn" onclick="createAccount()">Create Account</button>
+        
+        <div class="switch-auth">
+            Already have an account? <a href="login-auth.html">Log In</a>
+        </div>
+        
+        <a href="index.html" class="back-link">← Back to Home</a>
+    </div>
+
+    <script>
+        function createAccount() {
+            const email = document.getElementById("email").value;
+            const password = document.getElementById("password").value;
+            const username = document.getElementById("username").value;
+
+            if (!email || !password || !username) {
+                alert("Please fill in all fields.");
+                return;
+            }
+
+            fetch("/api/register", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ email, password, username })
+            })
+            .then(res => {
+                if(res.ok) {
+                    // Save username locally so the app knows who is logged in
+                    localStorage.setItem("chathub_username", username);
+                    alert("Account created! Redirecting...");
+                    window.location.href = "app.html";
+                } else {
+                    alert("Username or Email is already taken!");
+                }
+            })
+            .catch(err => {
+                alert("Could not connect to the server.");
+            });
+        }
+    </script>
+</body>
+</html>
