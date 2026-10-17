@@ -24,8 +24,8 @@ document.addEventListener("DOMContentLoaded", () => {
             navDms.classList.remove("active");
             viewFriends.style.display = "flex";
             viewDms.style.display = "none";
-            dmCategory.style.display = "none";
-            dmListContainer.style.display = "none";
+            if(dmCategory) dmCategory.style.display = "none";
+            if(dmListContainer) dmListContainer.style.display = "none";
         });
 
         navDms.addEventListener("click", () => {
@@ -33,8 +33,8 @@ document.addEventListener("DOMContentLoaded", () => {
             navFriends.classList.remove("active");
             viewDms.style.display = "flex";
             viewFriends.style.display = "none";
-            dmCategory.style.display = "block";
-            dmListContainer.style.display = "block";
+            if(dmCategory) dmCategory.style.display = "block";
+            if(dmListContainer) dmListContainer.style.display = "block";
         });
     }
 
@@ -45,43 +45,85 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (settingsBtn) settingsBtn.addEventListener("click", () => settingsModal.classList.add("active"));
     if (closeSettings) closeSettings.addEventListener("click", () => settingsModal.classList.remove("active"));
+    
     if (settingsModal) {
         settingsModal.addEventListener("click", (e) => {
             if (e.target === settingsModal) settingsModal.classList.remove("active");
         });
     }
+
+    // Settings Tabs logic
+    const tabs = document.querySelectorAll(".settings-tab");
+    tabs.forEach(tab => {
+        tab.addEventListener("click", function() {
+            tabs.forEach(t => t.classList.remove("active"));
+            this.classList.add("active");
+        });
+    });
 });
 
-// Add Friend Logic
-function addFriend() {
-    const friendName = document.getElementById("friend-search").value;
+// --- 4. Add Friend Logic ---
+async function addFriend() {
+    const friendName = document.getElementById("friend-search").value.trim();
     if (!friendName) return;
 
-    const friendsList = document.getElementById("friends-list");
-    
-    // Clear empty text if it's there
-    if (friendsList.innerHTML.includes("don't have any friends yet")) {
-        friendsList.innerHTML = "";
+    const currentUser = localStorage.getItem("chathub_username") || "User";
+
+    if (friendName.toLowerCase() === currentUser.toLowerCase()) {
+        alert("You can't add yourself!");
+        return;
     }
 
-    // Create friend row
-    const friendDiv = document.createElement("div");
-    friendDiv.style.cssText = "display: flex; align-items: center; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--hover);";
-    friendDiv.innerHTML = `
-        <div style="display: flex; align-items: center; gap: 10px;">
-            <div class="avatar" style="background: #5865F2;">${friendName.charAt(0).toUpperCase()}</div>
-            <span style="font-weight: bold;">${friendName}</span>
-        </div>
-        <button style="background: #23a559; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer;">Message</button>
-    `;
-    
-    friendsList.appendChild(friendDiv);
-    document.getElementById("friend-search").value = "";
+    // Send to Go backend
+    try {
+        const response = await fetch("/api/friends", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ user: currentUser, friend: friendName })
+        });
+
+        if (response.ok) {
+            const data = await response.json();
+            renderFriendsList(data.friends);
+            document.getElementById("friend-search").value = "";
+        } else {
+            alert("Failed to add friend.");
+        }
+    } catch (err) {
+        console.error("Error adding friend:", err);
+        alert("Could not connect to server.");
+    }
 }
 
-// Save profile logic
+// --- 5. Render Friends List ---
+function renderFriendsList(friends) {
+    const friendsList = document.getElementById("friends-list");
+    if (!friendsList) return;
+    
+    friendsList.innerHTML = "";
+
+    if (friends.length === 0) {
+        friendsList.innerHTML = `<p style="color: var(--text-muted); font-size: 0.9rem;">You don't have any friends yet. Add some!</p>`;
+        return;
+    }
+
+    friends.forEach(friendName => {
+        const friendDiv = document.createElement("div");
+        friendDiv.style.cssText = "display: flex; align-items: center; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--hover);";
+        friendDiv.innerHTML = `
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <div class="avatar" style="background: #5865F2;">${friendName.charAt(0).toUpperCase()}</div>
+                <span style="font-weight: bold;">${friendName}</span>
+            </div>
+            <button style="background: #23a559; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer;">Message</button>
+        `;
+        friendsList.appendChild(friendDiv);
+    });
+}
+
+// --- 6. Save Profile Logic ---
 function saveProfile() {
-    const newName = document.getElementById("settings-username").value;
+    const newName = document.getElementById("settings-username").value.trim();
     if (newName) {
         localStorage.setItem("chathub_username", newName);
         document.getElementById("user-display-name").innerText = newName;
@@ -91,7 +133,7 @@ function saveProfile() {
     }
 }
 
-// Logout logic
+// --- 7. Logout Logic ---
 function logout() {
     localStorage.removeItem("chathub_username");
     window.location.href = "index.html";
