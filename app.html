@@ -122,7 +122,7 @@
         </div>
     </div>
 
-    <!-- Modals -->
+    <!-- Settings Modal -->
     <div class="modal-overlay" id="settings-modal">
         <div class="settings-modal">
             <button class="settings-close" id="close-settings">&times;</button>
@@ -146,13 +146,40 @@
         </div>
     </div>
 
+    <!-- Create Server Modal -->
+    <div class="modal-overlay" id="create-server-modal">
+        <div class="settings-modal" style="height: auto; width: 480px; flex-direction: column; padding: 32px;">
+            <button class="settings-close" id="close-create-server">&times;</button>
+            <h2 style="margin-bottom: 8px;">Create a Server</h2>
+            <p style="color: var(--text-muted); margin-bottom: 24px;">Your server is where you and your friends hang out.</p>
+            
+            <div class="form-group">
+                <label>Server Name</label>
+                <input type="text" id="new-server-name" placeholder="Gaming Hub">
+            </div>
+            
+            <div class="form-group">
+                <label>Server Icon Color</label>
+                <input type="color" id="new-server-color" value="#ff5c46" style="height: 48px; cursor: pointer;">
+            </div>
+            
+            <button class="btn-full-profile" onclick="createNewServer()">Create Server</button>
+        </div>
+    </div>
+
+    <!-- Explore Modal -->
     <div class="modal-overlay" id="explore-modal">
-        <div class="settings-modal" style="height: 600px;">
+        <div class="settings-modal" style="height: 600px; width: 600px;">
             <button class="settings-close" id="close-explore">&times;</button>
-            <div class="settings-content" style="width: 100%;">
+            <div class="settings-content" style="width: 100%; padding: 32px;">
                 <h2>Explore Servers</h2>
                 <p style="color: var(--text-muted); margin-bottom: 20px;">Find your community and join the conversation.</p>
-                <div id="public-servers-list" style="display: flex; flex-direction: column; gap: 12px;"></div>
+                
+                <div class="search-bar" style="padding: 0 0 20px 0; border: none;">
+                    <input type="text" id="explore-search" placeholder="Search for a server..." oninput="filterExplore()" style="background: rgba(0,0,0,0.3); border: 1px solid var(--glass-border);">
+                </div>
+
+                <div id="public-servers-list" style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; padding-bottom: 20px;"></div>
             </div>
         </div>
     </div>
