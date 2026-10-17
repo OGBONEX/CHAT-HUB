@@ -1,11 +1,10 @@
 :root {
-    /* Unique Chat Hub Colors */
     --bg-gradient: linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #4c1d95 100%);
     --glass-bg: rgba(255, 255, 255, 0.05);
     --glass-border: rgba(255, 255, 255, 0.1);
     --text-main: #f8fafc;
     --text-muted: #94a3b8;
-    --accent: #ff5c46; /* Chat Hub Orange */
+    --accent: #ff5c46;
     --accent-hover: #ff7a66;
     --hover: rgba(255, 255, 255, 0.1);
     --bg-input: rgba(0, 0, 0, 0.2);
@@ -20,7 +19,6 @@ body {
     overflow: hidden; 
 }
 
-/* Modern App Layout: Grid with gaps for a "floating" look */
 .app-layout { 
     display: flex; 
     height: 100vh; 
@@ -29,7 +27,7 @@ body {
     gap: 16px;
 }
 
-/* --- 1. Server Icons Sidebar (Floating Pill) --- */
+/* --- 1. Server Icons Sidebar --- */
 .server-sidebar {
     width: 72px; 
     background: var(--glass-bg); 
@@ -54,7 +52,7 @@ body {
 #create-server-btn:hover { background: #10b981; color: white; box-shadow: 0 0 15px rgba(16, 185, 129, 0.5); }
 .sidebar-divider { width: 32px; height: 2px; background-color: var(--glass-border); border-radius: 1px; margin: 4px 0; }
 
-/* --- 2. Channel / DM Sidebar (Floating Panel) --- */
+/* --- 2. Channel / DM Sidebar --- */
 .channel-sidebar { 
     width: 280px; 
     background: var(--glass-bg); 
@@ -87,7 +85,7 @@ body {
 .dm-name { font-size: 0.9rem; font-weight: 600; color: var(--text-main); }
 .dm-status { font-size: 0.75rem; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-/* --- 3. Main Chat Area (Floating Panel) --- */
+/* --- 3. Main Chat Area --- */
 .chat-area { 
     flex: 1; 
     background: rgba(0, 0, 0, 0.2); 
@@ -98,14 +96,12 @@ body {
     position: relative;
 }
 
-/* Header with User Profile */
 .chat-header { 
     height: 72px; display: flex; align-items: center; padding: 0 24px; font-weight: bold; font-size: 1.1rem;
     justify-content: space-between; border-bottom: 1px solid var(--glass-border); flex-shrink: 0; z-index: 10; 
 }
 .chat-title { display: flex; align-items: center; gap: 12px; }
 
-/* MOVED: User Profile is now in the top right */
 .user-panel-top {
     display: flex; align-items: center; gap: 12px; 
     background: rgba(255,255,255,0.05); padding: 6px 12px; border-radius: 12px; border: 1px solid var(--glass-border);
@@ -155,7 +151,7 @@ body {
 .settings-tab.active { background: var(--accent); color: white; box-shadow: 0 4px 15px rgba(255, 92, 70, 0.3); }
 .settings-content { flex: 1; padding: 40px; overflow-y: auto; }
 .settings-content h2 { margin-bottom: 24px; font-size: 1.8rem; font-weight: 800; }
-.settings-close { position: absolute; top: 20px; right: 20px; background: rgba(255,255,255,0.1); border: none; color: white; width: 32px; height: 32px; border-radius: 50%; display: flex; justify-content: center; align-items: center; font-size: 1.2rem; cursor: pointer; transition: 0.2s; }
+.settings-close { position: absolute; top: 20px; right: 20px; background: rgba(255,255,255,0.1); border: none; color: white; width: 32px; height: 32px; border-radius: 50%; display: flex; justify-content: center; align-items: center; font-size: 1.2rem; cursor: pointer; transition: 0.2s; z-index: 100; }
 .settings-close:hover { background: var(--accent); transform: rotate(90deg); }
 .form-group { margin-bottom: 24px; }
 .form-group label { display: block; font-size: 0.8rem; font-weight: 700; color: var(--text-muted); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px; }
@@ -163,3 +159,20 @@ body {
 .form-group input:focus { border-color: var(--accent); }
 .btn-full-profile { background: var(--accent); color: white; border: none; padding: 14px 24px; border-radius: 12px; font-weight: 700; font-size: 1rem; cursor: pointer; transition: 0.2s; width: 100%; box-shadow: 0 4px 15px rgba(255, 92, 70, 0.3); }
 .btn-full-profile:hover { background: var(--accent-hover); transform: translateY(-2px); }
+
+/* Explore Cards */
+.explore-card {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--glass-border);
+    border-radius: 16px;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    transition: transform 0.2s, background 0.2s;
+}
+.explore-card:hover {
+    transform: translateY(-4px);
+    background: rgba(255, 255, 255, 0.08);
+    box-shadow: 0 10px 20px rgba(0,0,0,0.2);
+}
