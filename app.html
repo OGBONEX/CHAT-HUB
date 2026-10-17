@@ -11,36 +11,57 @@
     <div class="app-layout">
         <!-- Server Icons Sidebar -->
         <div class="server-sidebar">
-            <div class="server-icon active" title="Chat Hub">@H</div>
-            <div class="server-icon" title="Game Night">GN</div>
-            <div class="server-icon add-server">+</div>
+            <!-- Home / DMs -->
+            <div class="server-icon active" title="Direct Messages">
+                <i class="fa-solid fa-comment-dots"></i>
+            </div>
+            <div class="sidebar-divider"></div>
+            
+            <!-- Servers -->
+            <div class="server-icon" title="Chat Hub Community">CH</div>
+            
+            <div class="sidebar-divider"></div>
+
+            <!-- Action Buttons -->
+            <div class="server-icon action-btn" id="create-server-btn" title="Create a Server">
+                <i class="fa-solid fa-plus"></i>
+            </div>
+            <div class="server-icon action-btn" id="explore-btn" title="Explore">
+                <i class="fa-solid fa-compass"></i>
+            </div>
         </div>
 
-        <!-- Channel Sidebar -->
+        <!-- Channel / DM Sidebar -->
         <div class="channel-sidebar">
-            <div class="server-header">
-                Game Night <i class="fa-solid fa-chevron-down"></i>
+            <div class="search-bar">
+                <input type="text" placeholder="Find or start a conversation">
             </div>
+            
             <div class="channel-list">
-                <div class="category">TEXT CHANNELS</div>
-                <div class="channel active"><i class="fa-solid fa-hashtag"></i> general</div>
-                <div class="channel"><i class="fa-solid fa-hashtag"></i> memes</div>
-                <div class="channel"><i class="fa-solid fa-hashtag"></i> clips</div>
-                <div class="category" style="margin-top: 20px;">VOICE CHANNELS</div>
-                <div class="channel"><i class="fa-solid fa-volume-high"></i> Lounge</div>
+                <div class="channel"><i class="fa-solid fa-user-group"></i> Friends</div>
+                <div class="channel active"><i class="fa-solid fa-inbox"></i> Direct Messages</div>
+                
+                <div class="category">DIRECT MESSAGES</div>
+                
+                <div class="dm-user active">
+                    <div class="avatar" style="background: #5865F2;">U</div>
+                    <div class="dm-info">
+                        <span class="dm-name">User 1</span>
+                        <span class="dm-status">Hello there!</span>
+                    </div>
+                </div>
             </div>
+
             <!-- User Panel -->
             <div class="user-panel">
                 <div class="user-info">
-                    <div class="avatar m">M</div>
+                    <div class="avatar" style="background: #23a559;">Y</div>
                     <div>
-                        <div class="username">mika</div>
+                        <div class="username">You</div>
                         <div class="status">Online</div>
                     </div>
                 </div>
                 <div class="user-controls">
-                    <i class="fa-solid fa-microphone"></i>
-                    <i class="fa-solid fa-headphones"></i>
                     <i class="fa-solid fa-gear"></i>
                 </div>
             </div>
@@ -49,41 +70,31 @@
         <!-- Main Chat Area -->
         <div class="chat-area">
             <div class="chat-header">
-                <i class="fa-solid fa-hashtag"></i> general
-            </div>
-            <div class="chat-messages" id="chat-messages">
-                <!-- Message 1 -->
-                <div class="message">
-                    <div class="avatar m">M</div>
-                    <div class="message-content">
-                        <div class="message-header">
-                            <span class="author" style="color: #9b59b6;">mika</span>
-                            <span class="time">Today at 19:30</span>
-                        </div>
-                        <div class="text">anyone up for a match tonight?</div>
-                    </div>
+                <div class="chat-title">
+                    <div class="avatar" style="width: 24px; height: 24px; font-size: 0.7rem; background: #5865F2;">U</div>
+                    User 1
                 </div>
-                <!-- Message 2 -->
+            </div>
+            
+            <div class="chat-messages" id="chat-messages">
                 <div class="message">
-                    <div class="avatar j">J</div>
+                    <div class="avatar" style="background: #5865F2;">U</div>
                     <div class="message-content">
                         <div class="message-header">
-                            <span class="author" style="color: #3498db;">jules</span>
-                            <span class="time">Today at 19:31</span>
+                            <span class="author" style="color: #5865F2;">User 1</span>
+                            <span class="time">Today at 4:15 PM</span>
                         </div>
-                        <div class="text">yes!! already in Lounge</div>
+                        <div class="text">Hey! Welcome to Chat Hub.</div>
                     </div>
                 </div>
             </div>
             
-            <!-- Chat Input -->
             <div class="chat-input-wrapper">
                 <div class="chat-input">
                     <i class="fa-solid fa-plus"></i>
-                    <input type="text" id="message-input" placeholder="Message #general" autocomplete="off">
+                    <input type="text" id="message-input" placeholder="Message @User 1" autocomplete="off">
                     <div class="input-icons">
-                        <i class="fa-solid fa-gift"></i>
-                        <i class="fa-regular fa-face-smile"></i>
+                        <i class="fa-solid fa-face-smile"></i>
                     </div>
                 </div>
             </div>
