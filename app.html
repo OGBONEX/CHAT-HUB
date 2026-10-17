@@ -11,14 +11,10 @@
     <div class="app-layout">
         <!-- Server Icons Sidebar -->
         <div class="server-sidebar">
-            <!-- Home / DMs -->
             <div class="server-icon active" title="Direct Messages">
                 <i class="fa-solid fa-comment-dots"></i>
             </div>
-            
             <div class="sidebar-divider"></div>
-
-            <!-- Action Buttons -->
             <div class="server-icon action-btn" id="create-server-btn" title="Create a Server">
                 <i class="fa-solid fa-plus"></i>
             </div>
@@ -34,14 +30,11 @@
             </div>
             
             <div class="channel-list">
-                <!-- Friends Button -->
                 <div class="channel" id="nav-friends"><i class="fa-solid fa-user-group"></i> Friends</div>
-                <!-- DMs Button -->
                 <div class="channel active" id="nav-dms"><i class="fa-solid fa-inbox"></i> Direct Messages</div>
                 
                 <div class="category" id="dm-category">DIRECT MESSAGES</div>
                 
-                <!-- DM List -->
                 <div id="dm-list-container">
                     <div style="padding: 16px; text-align: center; color: var(--text-muted); font-size: 0.9rem;">
                         No messages yet.
@@ -61,21 +54,19 @@
                 <div class="user-controls">
                     <i class="fa-solid fa-microphone"></i>
                     <i class="fa-solid fa-headphones"></i>
-                    <i class="fa-solid fa-gear" id="settings-btn"></i>
+                    <i class="fa-solid fa-gear" id="settings-btn" style="cursor: pointer;"></i>
                 </div>
             </div>
         </div>
 
         <!-- Main Chat Area (DMs) -->
         <div class="chat-area" id="view-dms">
-            <!-- Blank state (Shows when no chat is selected) -->
             <div id="dm-empty-state" style="flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; color: var(--text-muted);">
                 <i class="fa-regular fa-comments" style="font-size: 4rem; margin-bottom: 20px;"></i>
                 <h2>Welcome to Chat Hub</h2>
                 <p>Select a friend from the Friends tab to start chatting.</p>
             </div>
 
-            <!-- Active DM view (Hidden by default) -->
             <div id="dm-active-chat" style="display: none; flex: 1; flex-direction: column; height: 100%;">
                 <div class="chat-header">
                     <div class="chat-title">
@@ -84,9 +75,7 @@
                     </div>
                 </div>
                 
-                <div class="chat-messages" id="dm-messages-container">
-                    <!-- Messages will appear here -->
-                </div>
+                <div class="chat-messages" id="dm-messages-container"></div>
                 
                 <div class="chat-input-wrapper">
                     <div class="chat-input">
@@ -132,7 +121,11 @@
                 <h2>My Account</h2>
                 <div class="form-group">
                     <label>Username</label>
-                    <input type="text" value="User" id="settings-username">
+                    <input type="text" id="settings-username" value="">
+                </div>
+                <div class="form-group">
+                    <label>Profile Accent Color</label>
+                    <input type="color" id="settings-color" value="#5865F2" style="height: 40px; cursor: pointer;">
                 </div>
                 <button class="btn-full-profile" style="width: auto; padding: 10px 20px;" onclick="saveProfile()">Save Changes</button>
             </div>
