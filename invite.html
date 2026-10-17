@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Join Server - Chat Hub</title>
+    <link rel="stylesheet" href="app.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body style="display: flex; justify-content: center; align-items: center; height: 100vh;">
+    <div class="settings-modal" style="width: 450px; height: auto; flex-direction: column; padding: 40px; text-align: center;">
+        <h1 style="font-size: 2rem; margin-bottom: 10px;">You've been invited!</h1>
+        <p style="color: var(--text-muted); margin-bottom: 30px;">You have been invited to join a server on Chat Hub.</p>
+        
+        <div id="server-info" style="margin-bottom: 30px;">
+            <div class="avatar" style="width: 80px; height: 80px; font-size: 2rem; margin: 0 auto 16px auto; background: var(--accent);">?</div>
+            <h2 id="invite-server-name" style="color: white;">Loading...</h2>
+        </div>
+
+        <button id="join-btn" class="btn-full-profile" onclick="acceptInvite()" style="padding: 16px; font-size: 1.1rem;">Accept Invite</button>
+        <p style="margin-top: 20px; font-size: 0.8rem; color: var(--text-muted);">Not logged in? <a href="login-auth.html" style="color: var(--accent);">Log in here</a></p>
+    </div>
+
+    <script>
+        const urlParams = new URLSearchParams(window.location.search);
+        const inviteCode = urlParams.get('code');
+        const currentUser = localStorage.getItem("chathub_username");
+
+        if (!inviteCode) {
+            alert("Invalid invite link.");
+            window.location.href = "index.html";
+        }
+
+        if (!currentUser) {
+            // Save the code so we can redirect back after login
+            localStorage.setItem("pending_invite", inviteCode);
+            alert("Please log in first to join the server.");
+            window.location.href = "login-auth.html";
+        }
+
+        // Validate the invite and show server name
+        async function checkInvite() {
+            try {
+                const res = await fetch("/api/invites/join", {
+                    method: "POST", 
+                    headers: { "Content-Type": "application/json" }, 
+                    body: JSON.stringify({ code: inviteCode, user: currentUser })
+                });
+                
+                if (res.ok) {
+                    const data = await res.json();
+                    document.getElementById("invite-server-name").innerText = data.server_name;
+                    document.querySelector(".avatar").innerText = data.server_name.charAt(0).toUpperCase();
+                } else {
+                    alert("Invite is invalid or expired.");
+                    window.location.href = "index.html";
+                }
+            } catch (err) {
+                console.error(err);
+            }
+        }
+
+        checkInvite();
+
+        async function acceptInvite() {
+            // The API call already happened in checkInvite to add the user, 
+            // but we can just redirect them to the app!
+            window.location.href = "app.html";
+        }
+    </script>
+</body>
+</html>
