@@ -31,6 +31,11 @@
             </div>
             
             <div class="channel-list">
+                <div class="category">VOICE CHANNELS</div>
+                <div class="channel" onclick="joinVoiceChannel('Lounge')">
+                    <i class="fa-solid fa-volume-high"></i> Lounge
+                </div>
+
                 <div class="channel" id="nav-friends">
                     <i class="fa-solid fa-user-group"></i> Friends
                 </div>
@@ -50,14 +55,12 @@
 
         <!-- 3. Main Chat Area -->
         <div class="chat-area" id="view-dms">
-            <!-- Blank State (Welcome Screen) -->
             <div id="dm-empty-state" style="flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; color: var(--text-muted);">
                 <i class="fa-regular fa-comments" style="font-size: 4rem; margin-bottom: 20px; color: var(--glass-border);"></i>
                 <h2 style="color: white; margin-bottom: 8px;">Welcome to Chat Hub</h2>
                 <p>Select a friend or server to start chatting.</p>
             </div>
 
-            <!-- Active Chat View -->
             <div id="dm-active-chat" style="display: none; flex: 1; flex-direction: column; height: 100%;">
                 <div class="chat-header">
                     <div class="chat-title">
@@ -65,7 +68,6 @@
                         <span id="dm-chat-name">User</span>
                     </div>
                     
-                    <!-- User Profile Panel (Top Right) -->
                     <div class="user-panel-top">
                         <div class="avatar" id="user-avatar" style="width: 32px; height: 32px; font-size: 0.9rem; background: #23a559;">U</div>
                         <div>
@@ -92,12 +94,9 @@
             </div>
         </div>
 
-        <!-- 4. Friends View -->
         <div class="chat-area" id="view-friends" style="display: none;">
             <div class="chat-header">
                 <div class="chat-title"><i class="fa-solid fa-user-group" style="margin-right: 8px;"></i> Friends</div>
-                
-                <!-- User Profile Panel (Top Right) -->
                 <div class="user-panel-top">
                     <div class="avatar" id="user-avatar-friends" style="width: 32px; height: 32px; font-size: 0.9rem; background: #23a559;">U</div>
                     <div>
@@ -123,7 +122,7 @@
         </div>
     </div>
 
-    <!-- Settings Modal -->
+    <!-- Modals -->
     <div class="modal-overlay" id="settings-modal">
         <div class="settings-modal">
             <button class="settings-close" id="close-settings">&times;</button>
@@ -147,7 +146,6 @@
         </div>
     </div>
 
-    <!-- Explore Modal -->
     <div class="modal-overlay" id="explore-modal">
         <div class="settings-modal" style="height: 600px;">
             <button class="settings-close" id="close-explore">&times;</button>
@@ -158,6 +156,19 @@
             </div>
         </div>
     </div>
+
+    <!-- Voice Call Overlay -->
+    <div id="voice-overlay" style="display: none; position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: rgba(30, 27, 75, 0.9); backdrop-filter: blur(12px); border: 1px solid var(--glass-border); padding: 16px 24px; border-radius: 24px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); z-index: 2000; display: flex; align-items: center; gap: 20px;">
+        <div style="display: flex; align-items: center; gap: 12px;">
+            <i class="fa-solid fa-volume-high" style="color: #10b981; font-size: 1.5rem;"></i>
+            <div>
+                <div style="font-weight: bold; color: white;">Voice Connected</div>
+                <div style="font-size: 0.8rem; color: var(--text-muted);" id="voice-channel-name">Lounge</div>
+            </div>
+        </div>
+        <button onclick="leaveVoiceChannel()" style="background: #ff5c46; color: white; border: none; padding: 10px 16px; border-radius: 12px; font-weight: bold; cursor: pointer;">Disconnect</button>
+    </div>
+    <audio id="remote-audio" autoplay></audio>
 
     <script src="app.js"></script>
 </body>
