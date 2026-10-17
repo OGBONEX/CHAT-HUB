@@ -52,12 +52,17 @@ func main() {
 		fs.ServeHTTP(w, r)
 	})
 
+	// APIs
 	http.HandleFunc("/api/register", handleRegister)
 	http.HandleFunc("/api/login", handleLogin)
 	http.HandleFunc("/api/friends", handleFriends)
 	http.HandleFunc("/api/messages/send", handleSendMessage)
 	http.HandleFunc("/api/messages/get", handleGetMessages)
+	http.HandleFunc("/api/messages/edit", handleEditMessage)
+	http.HandleFunc("/api/messages/delete", handleDeleteMessage)
 	http.HandleFunc("/api/profile/update", handleUpdateProfile)
+	
+	// Server APIs
 	http.HandleFunc("/api/servers/create", handleCreateServer)
 	http.HandleFunc("/api/servers/get", handleGetServers)
 	http.HandleFunc("/api/servers/join", handleJoinServer)
@@ -65,6 +70,7 @@ func main() {
 	http.HandleFunc("/api/channels/get", handleGetChannels)
 	http.HandleFunc("/api/server-messages/send", handleSendServerMessage)
 	http.HandleFunc("/api/server-messages/get", handleGetServerMessages)
+	
 	http.HandleFunc("/ws", handleConnections)
 
 	port := ":8080"
@@ -100,14 +106,12 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 
-		// Handle typing events
 		if msg["type"] == "typing" || msg["type"] == "stop_typing" {
 			target, ok := msg["target"].(string)
 			if !ok { continue }
 			
 			clientsMu.Lock()
 			for c := range clients {
-				// Send to the target user OR the user who is typing (to sync multiple tabs)
 				if c.username == target || c.username == username {
 					c.conn.WriteJSON(msg)
 				}
@@ -176,14 +180,24 @@ func handleFriends(w http.ResponseWriter, r *http.Request) {
 func handleSendMessage(w http.ResponseWriter, r *http.Request) {
 	var req struct { Sender, Receiver, Content string }
 	json.NewDecoder(r.Body).Decode(&req)
+	
 	dbMu.Lock()
-	db.Exec("INSERT INTO messages (sender, receiver, content) VALUES (?, ?, ?)", req.Sender, req.Receiver, req.Content)
+	res, err := db.Exec("INSERT INTO messages (sender, receiver, content) VALUES (?, ?, ?)", req.Sender, req.Receiver, req.Content)
 	dbMu.Unlock()
+	
+	if err != nil {
+		http.Error(w, "Error saving", http.StatusInternalServerError)
+		return
+	}
+	
+	msgID, _ := res.LastInsertId()
 
 	clientsMu.Lock()
 	for c := range clients {
 		if c.username == req.Receiver || c.username == req.Sender {
-			c.conn.WriteJSON(map[string]string{"type": "new_message", "sender": req.Sender, "receiver": req.Receiver, "content": req.Content})
+			c.conn.WriteJSON(map[string]interface{}{
+				"type": "new_message", "id": msgID, "sender": req.Sender, "receiver": req.Receiver, "content": req.Content,
+			})
 		}
 	}
 	clientsMu.Unlock()
@@ -192,12 +206,35 @@ func handleSendMessage(w http.ResponseWriter, r *http.Request) {
 
 func handleGetMessages(w http.ResponseWriter, r *http.Request) {
 	user1, user2 := r.URL.Query().Get("user1"), r.URL.Query().Get("user2")
-	rows, _ := db.Query(`SELECT sender, content FROM messages WHERE (sender = ? AND receiver = ?) OR (sender = ? AND receiver = ?) ORDER BY timestamp ASC`, user1, user2, user2, user1)
+	rows, _ := db.Query(`SELECT id, sender, content FROM messages WHERE (sender = ? AND receiver = ?) OR (sender = ? AND receiver = ?) ORDER BY timestamp ASC`, user1, user2, user2, user1)
 	defer rows.Close()
-	var messages []map[string]string
-	for rows.Next() { var s, c string; rows.Scan(&s, &c); messages = append(messages, map[string]string{"sender": s, "content": c}) }
-	if messages == nil { messages = []map[string]string{} }
+	var messages []map[string]interface{}
+	for rows.Next() { 
+		var id int
+		var s, c string
+		rows.Scan(&id, &s, &c)
+		messages = append(messages, map[string]interface{}{"id": id, "sender": s, "content": c}) 
+	}
+	if messages == nil { messages = []map[string]interface{}{} }
 	json.NewEncoder(w).Encode(messages)
+}
+
+func handleEditMessage(w http.ResponseWriter, r *http.Request) {
+	var req struct { ID int; Content string }
+	json.NewDecoder(r.Body).Decode(&req)
+	dbMu.Lock()
+	db.Exec("UPDATE messages SET content = ? WHERE id = ?", req.Content, req.ID)
+	dbMu.Unlock()
+	w.WriteHeader(http.StatusOK)
+}
+
+func handleDeleteMessage(w http.ResponseWriter, r *http.Request) {
+	var req struct { ID int }
+	json.NewDecoder(r.Body).Decode(&req)
+	dbMu.Lock()
+	db.Exec("DELETE FROM messages WHERE id = ?", req.ID)
+	dbMu.Unlock()
+	w.WriteHeader(http.StatusOK)
 }
 
 // --- Servers & Channels ---
@@ -265,22 +302,20 @@ func handleSendServerMessage(w http.ResponseWriter, r *http.Request) {
 	receiver := fmt.Sprintf("channel_%d", req.ChannelID)
 
 	dbMu.Lock()
-	_, err := db.Exec("INSERT INTO messages (sender, receiver, content) VALUES (?, ?, ?)", req.Sender, receiver, req.Content)
+	res, err := db.Exec("INSERT INTO messages (sender, receiver, content) VALUES (?, ?, ?)", req.Sender, receiver, req.Content)
 	dbMu.Unlock()
 
 	if err != nil {
 		http.Error(w, "Error saving message", http.StatusInternalServerError)
 		return
 	}
+	
+	msgID, _ := res.LastInsertId()
 
-	// Broadcast to EVERY connected user
 	clientsMu.Lock()
 	for c := range clients {
 		c.conn.WriteJSON(map[string]interface{}{
-			"type":       "server_message",
-			"channel_id": req.ChannelID,
-			"sender":     req.Sender,
-			"content":    req.Content,
+			"type": "server_message", "id": msgID, "channel_id": req.ChannelID, "sender": req.Sender, "content": req.Content,
 		})
 	}
 	clientsMu.Unlock()
@@ -291,10 +326,15 @@ func handleSendServerMessage(w http.ResponseWriter, r *http.Request) {
 func handleGetServerMessages(w http.ResponseWriter, r *http.Request) {
 	channelID := r.URL.Query().Get("channel_id")
 	receiver := fmt.Sprintf("channel_%s", channelID)
-	rows, _ := db.Query("SELECT sender, content FROM messages WHERE receiver = ? ORDER BY timestamp ASC", receiver)
+	rows, _ := db.Query("SELECT id, sender, content FROM messages WHERE receiver = ? ORDER BY timestamp ASC", receiver)
 	defer rows.Close()
-	var messages []map[string]string
-	for rows.Next() { var s, c string; rows.Scan(&s, &c); messages = append(messages, map[string]string{"sender": s, "content": c}) }
-	if messages == nil { messages = []map[string]string{} }
+	var messages []map[string]interface{}
+	for rows.Next() { 
+		var id int
+		var s, c string
+		rows.Scan(&id, &s, &c)
+		messages = append(messages, map[string]interface{}{"id": id, "sender": s, "content": c}) 
+	}
+	if messages == nil { messages = []map[string]interface{}{} }
 	json.NewEncoder(w).Encode(messages)
 }
