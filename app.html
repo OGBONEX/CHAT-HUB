@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat Hub - App</title>
+    <link rel="stylesheet" href="app.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <div class="app-layout">
+        <!-- Server Icons Sidebar -->
+        <div class="server-sidebar">
+            <div class="server-icon active" title="Chat Hub">@H</div>
+            <div class="server-icon" title="Game Night">GN</div>
+            <div class="server-icon add-server">+</div>
+        </div>
+
+        <!-- Channel Sidebar -->
+        <div class="channel-sidebar">
+            <div class="server-header">
+                Game Night <i class="fa-solid fa-chevron-down"></i>
+            </div>
+            <div class="channel-list">
+                <div class="category">TEXT CHANNELS</div>
+                <div class="channel active"><i class="fa-solid fa-hashtag"></i> general</div>
+                <div class="channel"><i class="fa-solid fa-hashtag"></i> memes</div>
+                <div class="channel"><i class="fa-solid fa-hashtag"></i> clips</div>
+                <div class="category" style="margin-top: 20px;">VOICE CHANNELS</div>
+                <div class="channel"><i class="fa-solid fa-volume-high"></i> Lounge</div>
+            </div>
+            <!-- User Panel -->
+            <div class="user-panel">
+                <div class="user-info">
+                    <div class="avatar m">M</div>
+                    <div>
+                        <div class="username">mika</div>
+                        <div class="status">Online</div>
+                    </div>
+                </div>
+                <div class="user-controls">
+                    <i class="fa-solid fa-microphone"></i>
+                    <i class="fa-solid fa-headphones"></i>
+                    <i class="fa-solid fa-gear"></i>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Chat Area -->
+        <div class="chat-area">
+            <div class="chat-header">
+                <i class="fa-solid fa-hashtag"></i> general
+            </div>
+            <div class="chat-messages" id="chat-messages">
+                <!-- Message 1 -->
+                <div class="message">
+                    <div class="avatar m">M</div>
+                    <div class="message-content">
+                        <div class="message-header">
+                            <span class="author" style="color: #9b59b6;">mika</span>
+                            <span class="time">Today at 19:30</span>
+                        </div>
+                        <div class="text">anyone up for a match tonight?</div>
+                    </div>
+                </div>
+                <!-- Message 2 -->
+                <div class="message">
+                    <div class="avatar j">J</div>
+                    <div class="message-content">
+                        <div class="message-header">
+                            <span class="author" style="color: #3498db;">jules</span>
+                            <span class="time">Today at 19:31</span>
+                        </div>
+                        <div class="text">yes!! already in Lounge</div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Chat Input -->
+            <div class="chat-input-wrapper">
+                <div class="chat-input">
+                    <i class="fa-solid fa-plus"></i>
+                    <input type="text" id="message-input" placeholder="Message #general" autocomplete="off">
+                    <div class="input-icons">
+                        <i class="fa-solid fa-gift"></i>
+                        <i class="fa-regular fa-face-smile"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script src="app.js"></script>
+</body>
+</html>
