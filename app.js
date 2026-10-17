@@ -75,10 +75,8 @@ document.addEventListener("DOMContentLoaded", async () => {
         });
     });
     document.getElementById("close-settings").addEventListener("click", () => document.getElementById("settings-modal").classList.remove("active"));
-
     document.getElementById("create-server-btn").addEventListener("click", () => document.getElementById("create-server-modal").classList.add("active"));
     document.getElementById("close-create-server").addEventListener("click", () => document.getElementById("create-server-modal").classList.remove("active"));
-    
     document.getElementById("close-create-channel").addEventListener("click", () => document.getElementById("create-channel-modal").classList.remove("active"));
 
     // Explore Logic
@@ -141,12 +139,10 @@ async function renderBaseSidebar(currentUsername) {
         document.getElementById("view-friends").style.display = "none";
     });
 
-    // Load Friends List Content
     const res = await fetch(`/api/friends?user=${currentUsername}`);
     const data = await res.json();
     renderFriendsList(data.friends);
 
-    // Load Recent DMs
     const dmRes = await fetch(`/api/messages/recent?user=${currentUsername}`);
     const contacts = await dmRes.json();
     const dmListContainer = document.getElementById("dm-list-container");
@@ -193,7 +189,7 @@ async function loadServer(serverID, serverName) {
 
         <div style="padding: 16px; margin-top: 20px; display: flex; flex-direction: column; gap: 10px;">
              <button onclick="generateInviteLink(${serverID})" style="background: #10b981; border: none; color: white; width: 100%; padding: 10px; border-radius: 12px; cursor: pointer; font-weight: bold; box-shadow: 0 4px 10px rgba(16, 185, 129, 0.2);">Invite Friends</button>
-             <button onclick="window.location.reload()" style="background: var(--bg-input); border: 1px solid var(--glass-border); color: white; width: 100%; padding: 10px; border-radius: 12px; cursor: pointer; font-weight: bold;">Back to DMs</button>
+             <button onclick="renderBaseSidebar(localStorage.getItem('chathub_username'))" style="background: var(--bg-input); border: 1px solid var(--glass-border); color: white; width: 100%; padding: 10px; border-radius: 12px; cursor: pointer; font-weight: bold;">Back to DMs</button>
         </div>
     `;
 
