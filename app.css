@@ -1,0 +1,281 @@
+:root {
+    --bg-app: #313338;
+    --bg-sidebar: #2b2d31;
+    --bg-server: #1e1f22;
+    --bg-input: #383a40;
+    --text-main: #f2f3f5;
+    --text-muted: #949ba4;
+    --accent: #5865F2;
+    --hover: #35373c;
+}
+
+* { 
+    box-sizing: border-box; 
+    margin: 0; 
+    padding: 0; 
+    font-family: system-ui, -apple-system, sans-serif; 
+}
+
+body { 
+    background: var(--bg-app); 
+    color: var(--text-main); 
+    height: 100vh; 
+    overflow: hidden; 
+}
+
+.app-layout { 
+    display: flex; 
+    height: 100vh; 
+}
+
+/* --- Server Icons Sidebar (Far Left) --- */
+.server-sidebar {
+    width: 72px; 
+    background: var(--bg-server); 
+    display: flex; 
+    flex-direction: column;
+    align-items: center; 
+    padding: 12px 0; 
+    gap: 8px;
+}
+
+.server-icon {
+    width: 48px; 
+    height: 48px; 
+    background: var(--bg-app); 
+    border-radius: 50%;
+    display: flex; 
+    justify-content: center; 
+    align-items: center; 
+    font-weight: bold;
+    cursor: pointer; 
+    transition: 0.2s; 
+    color: white; 
+    font-size: 1.1rem;
+}
+
+.server-icon:hover, .server-icon.active { 
+    border-radius: 16px; 
+    background: var(--accent); 
+}
+
+.server-icon.add-server { 
+    color: #2ecc71; 
+    background: var(--bg-app); 
+    font-size: 1.5rem; 
+}
+
+.server-icon.add-server:hover { 
+    background: #2ecc71; 
+    color: white; 
+}
+
+/* --- Channel Sidebar (Middle) --- */
+.channel-sidebar {
+    width: 240px; 
+    background: var(--bg-sidebar); 
+    display: flex; 
+    flex-direction: column;
+}
+
+.server-header {
+    height: 48px; 
+    display: flex; 
+    align-items: center; 
+    padding: 0 16px;
+    font-weight: bold; 
+    border-bottom: 1px solid rgba(0,0,0,0.2); 
+    cursor: pointer;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.2); 
+    z-index: 10;
+}
+
+.channel-list { 
+    flex: 1; 
+    padding: 16px 8px; 
+    overflow-y: auto; 
+}
+
+.category { 
+    font-size: 0.75rem; 
+    font-weight: bold; 
+    color: var(--text-muted); 
+    padding: 8px; 
+    margin-top: 10px; 
+}
+
+.channel {
+    padding: 8px; 
+    border-radius: 4px; 
+    color: var(--text-muted); 
+    cursor: pointer;
+    margin-bottom: 2px; 
+    display: flex; 
+    align-items: center; 
+    gap: 6px; 
+    font-weight: 500;
+}
+
+.channel:hover { 
+    background: var(--hover); 
+    color: var(--text-main); 
+}
+
+.channel.active { 
+    background: #404249; 
+    color: white; 
+}
+
+.channel i { 
+    font-size: 1.1rem; 
+}
+
+/* --- User Panel (Bottom Left) --- */
+.user-panel {
+    height: 52px; 
+    background: var(--bg-server); 
+    display: flex; 
+    align-items: center;
+    padding: 0 8px; 
+    justify-content: space-between;
+}
+
+.user-info { 
+    display: flex; 
+    align-items: center; 
+    gap: 8px; 
+}
+
+.username { 
+    font-size: 0.9rem; 
+    font-weight: bold; 
+}
+
+.status { 
+    font-size: 0.75rem; 
+    color: var(--text-muted); 
+}
+
+.user-controls { 
+    display: flex; 
+    gap: 12px; 
+    color: var(--text-muted); 
+    cursor: pointer; 
+}
+
+.user-controls i:hover { 
+    color: var(--text-main); 
+}
+
+/* --- Avatars --- */
+.avatar {
+    width: 32px; 
+    height: 32px; 
+    border-radius: 50%; 
+    display: flex;
+    justify-content: center; 
+    align-items: center; 
+    font-weight: bold; 
+    color: white; 
+    font-size: 0.9rem;
+}
+
+.avatar.m { background: #9b59b6; } 
+.avatar.j { background: #3498db; }
+
+/* --- Main Chat Area (Right) --- */
+.chat-area { 
+    flex: 1; 
+    display: flex; 
+    flex-direction: column; 
+}
+
+.chat-header { 
+    height: 48px; 
+    display: flex; 
+    align-items: center; 
+    padding: 0 16px; 
+    font-weight: bold; 
+    gap: 8px; 
+    box-shadow: 0 1px 2px rgba(0,0,0,0.2); 
+    z-index: 10; 
+}
+
+.chat-header i { 
+    color: var(--text-muted); 
+}
+
+.chat-messages { 
+    flex: 1; 
+    padding: 16px; 
+    overflow-y: auto; 
+    display: flex; 
+    flex-direction: column; 
+    gap: 16px; 
+}
+
+.message { 
+    display: flex; 
+    gap: 16px; 
+}
+
+.message-content { 
+    display: flex; 
+    flex-direction: column; 
+}
+
+.message-header { 
+    display: flex; 
+    align-items: baseline; 
+    gap: 8px; 
+    margin-bottom: 4px; 
+}
+
+.author { 
+    font-weight: 500; 
+}
+
+.time { 
+    font-size: 0.75rem; 
+    color: var(--text-muted); 
+}
+
+.text { 
+    color: #dbdee1; 
+    line-height: 1.4; 
+}
+
+/* --- Chat Input Box (Bottom Right) --- */
+.chat-input-wrapper { 
+    padding: 0 16px 24px 16px; 
+}
+
+.chat-input {
+    background: var(--bg-input); 
+    border-radius: 8px; 
+    display: flex;
+    align-items: center; 
+    padding: 0 16px; 
+    height: 44px;
+}
+
+.chat-input i { 
+    color: var(--text-muted); 
+    cursor: pointer; 
+    font-size: 1.2rem; 
+}
+
+.chat-input input {
+    flex: 1; 
+    background: transparent; 
+    border: none; 
+    outline: none;
+    color: var(--text-main); 
+    font-size: 1rem; 
+    padding: 0 16px;
+}
+
+.input-icons { 
+    display: flex; 
+    gap: 12px; 
+}
