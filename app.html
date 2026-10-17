@@ -11,18 +11,15 @@
     <div class="app-layout">
         <!-- Server Icons Sidebar -->
         <div class="server-sidebar">
-            <!-- Home / DMs -->
             <div class="server-icon active" title="Direct Messages">
                 <i class="fa-solid fa-comment-dots"></i>
             </div>
             <div class="sidebar-divider"></div>
             
-            <!-- Servers -->
             <div class="server-icon" title="Chat Hub Community">CH</div>
             
             <div class="sidebar-divider"></div>
 
-            <!-- Action Buttons -->
             <div class="server-icon action-btn" id="create-server-btn" title="Create a Server">
                 <i class="fa-solid fa-plus"></i>
             </div>
@@ -62,7 +59,9 @@
                     </div>
                 </div>
                 <div class="user-controls">
-                    <i class="fa-solid fa-gear"></i>
+                    <i class="fa-solid fa-microphone"></i>
+                    <i class="fa-solid fa-headphones"></i>
+                    <i class="fa-solid fa-gear" id="settings-btn"></i>
                 </div>
             </div>
         </div>
@@ -73,6 +72,10 @@
                 <div class="chat-title">
                     <div class="avatar" style="width: 24px; height: 24px; font-size: 0.7rem; background: #5865F2;">U</div>
                     User 1
+                </div>
+                <div class="header-actions">
+                    <i class="fa-solid fa-phone"></i>
+                    <i class="fa-solid fa-video"></i>
                 </div>
             </div>
             
@@ -100,6 +103,38 @@
             </div>
         </div>
     </div>
+
+    <!-- Settings Modal -->
+    <div class="modal-overlay" id="settings-modal">
+        <div class="settings-modal">
+            <button class="settings-close" id="close-settings">&times;</button>
+            
+            <div class="settings-sidebar">
+                <div class="settings-tab active">My Account</div>
+                <div class="settings-tab">Profile</div>
+                <div class="settings-tab">Voice & Video</div>
+                <div class="settings-tab" style="margin-top: auto; color: #ff5c46;">Log Out</div>
+            </div>
+
+            <div class="settings-content">
+                <h2>My Account</h2>
+                <div class="form-group">
+                    <label>Username</label>
+                    <input type="text" value="You" id="settings-username">
+                </div>
+                <div class="form-group">
+                    <label>Email</label>
+                    <input type="email" value="you@example.com" disabled style="opacity: 0.5;">
+                </div>
+                <div class="form-group">
+                    <label>Profile Color (Hex)</label>
+                    <input type="text" value="#5865F2" id="settings-color">
+                </div>
+                <button class="btn-full-profile" style="width: auto; padding: 10px 20px;">Save Changes</button>
+            </div>
+        </div>
+    </div>
+
     <script src="app.js"></script>
 </body>
 </html>
