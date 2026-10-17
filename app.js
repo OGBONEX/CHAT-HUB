@@ -85,7 +85,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         }, 2000);
     });
 
-    // 5. Settings & Create Server
+    // 5. Settings Modal
     document.getElementById("settings-btn").addEventListener("click", () => {
         document.getElementById("settings-username").value = currentUsername;
         document.getElementById("settings-color").value = currentColor;
@@ -93,6 +93,41 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
     document.getElementById("close-settings").addEventListener("click", () => document.getElementById("settings-modal").classList.remove("active"));
 
+    // 6. Explore Modal
+    document.getElementById("explore-btn").addEventListener("click", async () => {
+        document.getElementById("explore-modal").classList.add("active");
+        const list = document.getElementById("public-servers-list");
+        list.innerHTML = "<p style='color: var(--text-muted);'>Loading servers...</p>";
+        
+        try {
+            const res = await fetch("/api/servers/public");
+            const servers = await res.json();
+            
+            list.innerHTML = "";
+            if (servers.length === 0) {
+                list.innerHTML = "<p style='color: var(--text-muted);'>No servers found.</p>";
+                return;
+            }
+
+            servers.forEach(server => {
+                const div = document.createElement("div");
+                div.style.cssText = "display: flex; justify-content: space-between; align-items: center; background: var(--bg-input); padding: 16px; border-radius: 8px;";
+                div.innerHTML = `
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                        <div class="avatar" style="background: var(--accent);">${server.name.charAt(0).toUpperCase()}</div>
+                        <span style="font-weight: bold; color: white;">${server.name}</span>
+                    </div>
+                    <button onclick="joinServer(${server.id}, '${server.name}')" style="background: #23a559; color: white; border: none; padding: 8px 16px; border-radius: 4px; font-weight: bold; cursor: pointer;">Join</button>
+                `;
+                list.appendChild(div);
+            });
+        } catch (err) {
+            list.innerHTML = "<p style='color: #ff5c46;'>Error loading servers.</p>";
+        }
+    });
+    document.getElementById("close-explore").addEventListener("click", () => document.getElementById("explore-modal").classList.remove("active"));
+
+    // 7. Create Server
     document.getElementById("create-server-btn").addEventListener("click", async () => {
         const serverName = prompt("Enter a name for your new server:");
         if (serverName && serverName.trim() !== "") {
@@ -116,7 +151,35 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
 });
 
-// --- Message Rendering with Context Menu ---
+// --- Join Server from Explore ---
+async function joinServer(serverID, serverName) {
+    const currentUser = localStorage.getItem("chathub_username") || "User";
+    const res = await fetch("/api/servers/join", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ server_id: serverID, user: currentUser })
+    });
+
+    if (res.ok) {
+        alert(`Joined ${serverName}!`);
+        document.getElementById("explore-modal").classList.remove("active");
+        
+        // Add icon to sidebar if not already there
+        const newIcon = document.createElement("div");
+        newIcon.className = "server-icon";
+        newIcon.innerText = serverName.substring(0, 2).toUpperCase();
+        newIcon.title = serverName;
+        newIcon.onclick = () => loadServer(serverID, serverName);
+        const divider = document.querySelector(".sidebar-divider");
+        divider.parentNode.insertBefore(newIcon, divider);
+        
+        loadServer(serverID, serverName);
+    } else {
+        alert("Failed to join server.");
+    }
+}
+
+// --- Message Rendering ---
 function appendDMMessage(author, text, color, msgID) {
     const container = document.getElementById("dm-messages-container");
     const msgDiv = document.createElement("div");
@@ -134,8 +197,7 @@ function appendDMMessage(author, text, color, msgID) {
         </div>
     `;
 
-    // If it's your own message, add a right-click (contextmenu) listener
-    if (author === "You" && msgID) {
+    if (author === "You" && msgID && msgID !== "welcome") {
         msgDiv.addEventListener("contextmenu", (e) => {
             e.preventDefault();
             showContextMenu(e.pageX, e.pageY, msgID, text);
@@ -147,7 +209,6 @@ function appendDMMessage(author, text, color, msgID) {
 }
 
 function showContextMenu(x, y, msgID, currentText) {
-    // Remove existing menu if any
     const existingMenu = document.getElementById("custom-context-menu");
     if (existingMenu) existingMenu.remove();
 
@@ -158,7 +219,6 @@ function showContextMenu(x, y, msgID, currentText) {
         border: 1px solid var(--border-color); border-radius: 8px; padding: 8px 0;
         z-index: 1000; box-shadow: 0 4px 12px rgba(0,0,0,0.5); min-width: 120px;
     `;
-
     menu.innerHTML = `
         <div onclick="editMessage(${msgID}, '${currentText}')" style="padding: 8px 16px; cursor: pointer; color: white; font-size: 0.9rem;" onmouseover="this.style.background='var(--hover)'" onmouseout="this.style.background='transparent'">
             <i class="fa-solid fa-pen"></i> Edit
@@ -167,21 +227,15 @@ function showContextMenu(x, y, msgID, currentText) {
             <i class="fa-solid fa-trash"></i> Delete
         </div>
     `;
-
     document.body.appendChild(menu);
-
-    // Close menu on click anywhere else
-    document.addEventListener("click", () => {
-        if (menu) menu.remove();
-    }, { once: true });
+    document.addEventListener("click", () => { if (menu) menu.remove(); }, { once: true });
 }
 
 async function editMessage(msgID, oldText) {
     const newText = prompt("Edit your message:", oldText);
     if (newText && newText !== oldText) {
         await fetch("/api/messages/edit", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
+            method: "POST", headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ id: msgID, content: newText })
         });
         document.getElementById(`text-${msgID}`).innerText = newText;
@@ -191,8 +245,7 @@ async function editMessage(msgID, oldText) {
 async function deleteMessage(msgID) {
     if (confirm("Are you sure you want to delete this message?")) {
         await fetch("/api/messages/delete", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
+            method: "POST", headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ id: msgID })
         });
         document.getElementById(`text-${msgID}`).innerText = "This message was deleted.";
@@ -201,7 +254,7 @@ async function deleteMessage(msgID) {
     }
 }
 
-// --- DM & Server Loaders ---
+// --- Open DM ---
 async function openChat(friendName) {
     activeChatUser = friendName;
     activeChannelID = null;
@@ -226,10 +279,8 @@ async function openChat(friendName) {
         if (e.key === "Enter" && dmInput.value.trim() !== "") {
             const text = dmInput.value.trim();
             dmInput.value = "";
-            // We will reload the messages to get the ID
             fetch("/api/messages/send", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
+                method: "POST", headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ sender: currentUser, receiver: friendName, content: text })
             }).then(() => {
                 fetch(`/api/messages/get?user1=${currentUser}&user2=${friendName}`).then(res=>res.json()).then(messages=>{
@@ -257,6 +308,68 @@ async function openChat(friendName) {
     } catch (err) { console.error(err); }
 }
 
+// --- Friends ---
+async function addFriend() {
+    const friendName = document.getElementById("friend-search").value.trim();
+    if (!friendName) return;
+    const currentUser = localStorage.getItem("chathub_username") || "User";
+    if (friendName.toLowerCase() === currentUser.toLowerCase()) { alert("You can't add yourself!"); return; }
+
+    const response = await fetch("/api/friends", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ user: currentUser, friend: friendName })
+    });
+
+    if (response.ok) {
+        const getRes = await fetch(`/api/friends?user=${currentUser}`);
+        const data = await getRes.json();
+        renderFriendsList(data.friends);
+        document.getElementById("friend-search").value = "";
+    } else { alert("User not found."); }
+}
+
+function renderFriendsList(friends) {
+    const friendsList = document.getElementById("friends-list");
+    friendsList.innerHTML = (!friends || friends.length === 0) ? `<p style="color: var(--text-muted); font-size: 0.9rem;">You don't have any friends yet.</p>` : "";
+    friends.forEach(friendName => {
+        const friendDiv = document.createElement("div");
+        friendDiv.style.cssText = "display: flex; align-items: center; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--border-color);";
+        friendDiv.innerHTML = `
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <div class="avatar" style="background: #5865F2;">${friendName.charAt(0).toUpperCase()}</div>
+                <span style="font-weight: bold; color: white;">${friendName}</span>
+            </div>
+            <button onclick="openChat('${friendName}')" style="background: #23a559; color: white; border: none; padding: 8px 12px; border-radius: 4px; cursor: pointer; font-weight: bold;">Message</button>
+        `;
+        friendsList.appendChild(friendDiv);
+    });
+}
+
+// --- Save Profile ---
+async function saveProfile() {
+    const oldName = localStorage.getItem("chathub_username") || "User";
+    const newName = document.getElementById("settings-username").value.trim();
+    const newColor = document.getElementById("settings-color").value;
+
+    if (!newName) { alert("Username cannot be empty."); return; }
+    const res = await fetch("/api/profile/update", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ old_username: oldName, new_username: newName, new_color: newColor })
+    });
+
+    if (res.ok) {
+        localStorage.setItem("chathub_username", newName);
+        localStorage.setItem("chathub_color", newColor);
+        document.getElementById("user-display-name").innerText = newName;
+        const avatar = document.getElementById("user-avatar");
+        avatar.innerText = newName.charAt(0).toUpperCase();
+        avatar.style.background = newColor;
+        alert("Profile updated!");
+        document.getElementById("settings-modal").classList.remove("active");
+    } else { alert("That username is already taken."); }
+}
+
+// --- Servers & Channels ---
 async function loadServer(serverID, serverName) {
     const channelList = document.querySelector(".channel-list");
     const res = await fetch(`/api/channels/get?server_id=${serverID}`);
@@ -298,8 +411,7 @@ async function promptCreateChannel(serverID, serverName) {
     if (!channelName) return;
     const cleanName = channelName.toLowerCase().replace(/\s+/g, '-');
     await fetch("/api/channels/create", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ server_id: serverID, name: cleanName })
     });
     loadServer(serverID, serverName);
@@ -309,8 +421,7 @@ async function promptInvite(serverID) {
     const friendName = prompt("Enter the username of the friend you want to invite:");
     if (!friendName) return;
     const res = await fetch("/api/servers/join", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ server_id: serverID, user: friendName })
     });
     if (res.ok) alert(`Invited ${friendName} to the server!`);
@@ -338,8 +449,7 @@ async function openServerChannel(channelID, channelName, serverName) {
             const text = dmInput.value.trim();
             dmInput.value = "";
             fetch("/api/server-messages/send", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
+                method: "POST", headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ channel_id: channelID, sender: currentUser, content: text })
             }).then(() => {
                 fetch(`/api/server-messages/get?channel_id=${channelID}`).then(res=>res.json()).then(messages=>{
