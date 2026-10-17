@@ -7,10 +7,12 @@ document.addEventListener("DOMContentLoaded", async () => {
     let currentUsername = localStorage.getItem("chathub_username") || "User";
     let currentColor = localStorage.getItem("chathub_color") || "#23a559"; 
     
-    document.getElementById("user-display-name").innerText = currentUsername;
-    const userAvatar = document.getElementById("user-avatar");
-    userAvatar.innerText = currentUsername.charAt(0).toUpperCase();
-    userAvatar.style.background = currentColor;
+    // Update UI
+    document.querySelectorAll("#user-display-name, #user-display-name-friends").forEach(el => el.innerText = currentUsername);
+    document.querySelectorAll("#user-avatar, #user-avatar-friends").forEach(el => {
+        el.innerText = currentUsername.charAt(0).toUpperCase();
+        el.style.background = currentColor;
+    });
 
     // 1. Connect WebSocket
     const wsProtocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
@@ -57,7 +59,6 @@ document.addEventListener("DOMContentLoaded", async () => {
         });
     } catch (err) { console.log("Could not load servers."); }
 
-    // Load Recent DMs
     try {
         const res = await fetch(`/api/messages/recent?user=${currentUsername}`);
         const contacts = await res.json();
@@ -70,7 +71,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                 dmDiv.className = "dm-user";
                 dmDiv.onclick = () => openChat(contact);
                 dmDiv.innerHTML = `
-                    <div class="avatar" style="background: #5865F2;">${contact.charAt(0).toUpperCase()}</div>
+                    <div class="avatar" style="background: #5865F2; width: 32px; height: 32px; font-size: 0.9rem;">${contact.charAt(0).toUpperCase()}</div>
                     <div class="dm-info">
                         <span class="dm-name">${contact}</span>
                         <span class="dm-status">Click to chat</span>
@@ -109,11 +110,13 @@ document.addEventListener("DOMContentLoaded", async () => {
         }, 2000);
     });
 
-    // 5. Settings Modal
-    document.getElementById("settings-btn").addEventListener("click", () => {
-        document.getElementById("settings-username").value = currentUsername;
-        document.getElementById("settings-color").value = currentColor;
-        document.getElementById("settings-modal").classList.add("active");
+    // 5. Settings Modal (Now targets multiple buttons)
+    document.querySelectorAll("#settings-btn, #settings-btn-friends").forEach(btn => {
+        if(btn) btn.addEventListener("click", () => {
+            document.getElementById("settings-username").value = localStorage.getItem("chathub_username") || "User";
+            document.getElementById("settings-color").value = localStorage.getItem("chathub_color") || "#23a559";
+            document.getElementById("settings-modal").classList.add("active");
+        });
     });
     document.getElementById("close-settings").addEventListener("click", () => document.getElementById("settings-modal").classList.remove("active"));
 
@@ -135,13 +138,13 @@ document.addEventListener("DOMContentLoaded", async () => {
 
             servers.forEach(server => {
                 const div = document.createElement("div");
-                div.style.cssText = "display: flex; justify-content: space-between; align-items: center; background: var(--bg-input); padding: 16px; border-radius: 8px;";
+                div.style.cssText = "display: flex; justify-content: space-between; align-items: center; background: rgba(0,0,0,0.2); padding: 16px; border-radius: 12px; border: 1px solid var(--glass-border);";
                 div.innerHTML = `
                     <div style="display: flex; align-items: center; gap: 12px;">
                         <div class="avatar" style="background: var(--accent);">${server.name.charAt(0).toUpperCase()}</div>
                         <span style="font-weight: bold; color: white;">${server.name}</span>
                     </div>
-                    <button onclick="joinServer(${server.id}, '${server.name}')" style="background: #23a559; color: white; border: none; padding: 8px 16px; border-radius: 4px; font-weight: bold; cursor: pointer;">Join</button>
+                    <button onclick="joinServer(${server.id}, '${server.name}')" style="background: #10b981; color: white; border: none; padding: 8px 16px; border-radius: 8px; font-weight: bold; cursor: pointer;">Join</button>
                 `;
                 list.appendChild(div);
             });
@@ -238,15 +241,15 @@ function showContextMenu(x, y, msgID, currentText) {
     const menu = document.createElement("div");
     menu.id = "custom-context-menu";
     menu.style.cssText = `
-        position: absolute; top: ${y}px; left: ${x}px; background: var(--bg-sidebar);
-        border: 1px solid var(--border-color); border-radius: 8px; padding: 8px 0;
-        z-index: 1000; box-shadow: 0 4px 12px rgba(0,0,0,0.5); min-width: 120px;
+        position: absolute; top: ${y}px; left: ${x}px; background: rgba(30, 27, 75, 0.95);
+        border: 1px solid var(--glass-border); border-radius: 12px; padding: 8px 0;
+        z-index: 1000; box-shadow: 0 4px 12px rgba(0,0,0,0.5); min-width: 120px; backdrop-filter: blur(10px);
     `;
     menu.innerHTML = `
-        <div onclick="editMessage(${msgID}, '${currentText}')" style="padding: 8px 16px; cursor: pointer; color: white; font-size: 0.9rem;" onmouseover="this.style.background='var(--hover)'" onmouseout="this.style.background='transparent'">
+        <div onclick="editMessage(${msgID}, '${currentText}')" style="padding: 10px 16px; cursor: pointer; color: white; font-size: 0.9rem;" onmouseover="this.style.background='var(--hover)'" onmouseout="this.style.background='transparent'">
             <i class="fa-solid fa-pen"></i> Edit
         </div>
-        <div onclick="deleteMessage(${msgID})" style="padding: 8px 16px; cursor: pointer; color: #ff5c46; font-size: 0.9rem;" onmouseover="this.style.background='var(--hover)'" onmouseout="this.style.background='transparent'">
+        <div onclick="deleteMessage(${msgID})" style="padding: 10px 16px; cursor: pointer; color: #ff5c46; font-size: 0.9rem;" onmouseover="this.style.background='var(--hover)'" onmouseout="this.style.background='transparent'">
             <i class="fa-solid fa-trash"></i> Delete
         </div>
     `;
@@ -313,7 +316,6 @@ async function openChat(friendName) {
                         appendDMMessage(isMe ? "You" : friendName, msg.content, isMe ? currentColor : "#5865F2", msg.id);
                     });
                     
-                    // Refresh recent DMs list
                     fetch(`/api/messages/recent?user=${currentUser}`).then(res=>res.json()).then(contacts=>{
                         const dmListContainer = document.getElementById("dm-list-container");
                         dmListContainer.innerHTML = "";
@@ -322,7 +324,7 @@ async function openChat(friendName) {
                             dmDiv.className = "dm-user";
                             dmDiv.onclick = () => openChat(contact);
                             dmDiv.innerHTML = `
-                                <div class="avatar" style="background: #5865F2;">${contact.charAt(0).toUpperCase()}</div>
+                                <div class="avatar" style="background: #5865F2; width: 32px; height: 32px; font-size: 0.9rem;">${contact.charAt(0).toUpperCase()}</div>
                                 <div class="dm-info">
                                     <span class="dm-name">${contact}</span>
                                     <span class="dm-status">Click to chat</span>
@@ -375,13 +377,13 @@ function renderFriendsList(friends) {
     friendsList.innerHTML = (!friends || friends.length === 0) ? `<p style="color: var(--text-muted); font-size: 0.9rem;">You don't have any friends yet.</p>` : "";
     friends.forEach(friendName => {
         const friendDiv = document.createElement("div");
-        friendDiv.style.cssText = "display: flex; align-items: center; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--border-color);";
+        friendDiv.style.cssText = "display: flex; align-items: center; justify-content: space-between; padding: 12px; background: rgba(0,0,0,0.2); border: 1px solid var(--glass-border); border-radius: 12px; margin-bottom: 8px;";
         friendDiv.innerHTML = `
-            <div style="display: flex; align-items: center; gap: 10px;">
+            <div style="display: flex; align-items: center; gap: 12px;">
                 <div class="avatar" style="background: #5865F2;">${friendName.charAt(0).toUpperCase()}</div>
                 <span style="font-weight: bold; color: white;">${friendName}</span>
             </div>
-            <button onclick="openChat('${friendName}')" style="background: #23a559; color: white; border: none; padding: 8px 12px; border-radius: 4px; cursor: pointer; font-weight: bold;">Message</button>
+            <button onclick="openChat('${friendName}')" style="background: #10b981; color: white; border: none; padding: 8px 16px; border-radius: 8px; cursor: pointer; font-weight: bold; box-shadow: 0 4px 10px rgba(16, 185, 129, 0.2);">Message</button>
         `;
         friendsList.appendChild(friendDiv);
     });
@@ -402,10 +404,13 @@ async function saveProfile() {
     if (res.ok) {
         localStorage.setItem("chathub_username", newName);
         localStorage.setItem("chathub_color", newColor);
-        document.getElementById("user-display-name").innerText = newName;
-        const avatar = document.getElementById("user-avatar");
-        avatar.innerText = newName.charAt(0).toUpperCase();
-        avatar.style.background = newColor;
+        
+        document.querySelectorAll("#user-display-name, #user-display-name-friends").forEach(el => el.innerText = newName);
+        document.querySelectorAll("#user-avatar, #user-avatar-friends").forEach(el => {
+            el.innerText = newName.charAt(0).toUpperCase();
+            el.style.background = newColor;
+        });
+        
         alert("Profile updated!");
         document.getElementById("settings-modal").classList.remove("active");
     } else { alert("That username is already taken."); }
@@ -424,8 +429,8 @@ async function loadServer(serverID, serverName) {
         </div>
         <div id="server-channels-container"></div>
         <div style="padding: 16px; margin-top: 20px; display: flex; flex-direction: column; gap: 10px;">
-             <button onclick="promptInvite(${serverID})" style="background: #23a559; border: none; color: white; width: 100%; padding: 8px; border-radius: 4px; cursor: pointer; font-weight: bold;">Invite Friends</button>
-             <button onclick="window.location.reload()" style="background: var(--bg-input); border: 1px solid var(--border-color); color: white; width: 100%; padding: 8px; border-radius: 4px; cursor: pointer; font-weight: bold;">Back to DMs</button>
+             <button onclick="promptInvite(${serverID})" style="background: #10b981; border: none; color: white; width: 100%; padding: 10px; border-radius: 12px; cursor: pointer; font-weight: bold; box-shadow: 0 4px 10px rgba(16, 185, 129, 0.2);">Invite Friends</button>
+             <button onclick="window.location.reload()" style="background: var(--bg-input); border: 1px solid var(--glass-border); color: white; width: 100%; padding: 10px; border-radius: 12px; cursor: pointer; font-weight: bold;">Back to DMs</button>
         </div>
     `;
 
