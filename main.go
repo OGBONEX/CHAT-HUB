@@ -5,12 +5,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"math/rand"
 	"net/http"
 	"os"
 	"sync"
+	"time"
 
 	"github.com/gorilla/websocket"
-	_ "github.com/tursodatabase/libsql-client-go/libsql" // Turso driver
+	_ "github.com/tursodatabase/libsql-client-go/libsql"
 )
 
 var db *sql.DB
@@ -20,11 +22,9 @@ var dbMu sync.Mutex
 func initDB() {
 	var err error
 	
-	// Read Turso credentials from Environment Variables
 	dbURL := os.Getenv("TURSO_DATABASE_URL")
 	authToken := os.Getenv("TURSO_AUTH_TOKEN")
 
-	// If environment variables are missing (e.g., running locally), fallback to local SQLite
 	if dbURL == "" || authToken == "" {
 		fmt.Println("⚠️ Turso credentials not found. Falling back to local SQLite.")
 		db, err = sql.Open("sqlite3", "./chathub.db")
@@ -32,7 +32,6 @@ func initDB() {
 			log.Fatal(err)
 		}
 	} else {
-		// Connect to Turso Cloud
 		url := fmt.Sprintf("%s?authToken=%s", dbURL, authToken)
 		db, err = sql.Open("libsql", url)
 		if err != nil {
@@ -41,13 +40,13 @@ func initDB() {
 		fmt.Println("☁️ Connected to Turso Cloud Database.")
 	}
 
-	// --- Create Tables (Syntax is identical for both Turso and Local SQLite) ---
 	createUsersTable := `CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT UNIQUE, email TEXT UNIQUE, password TEXT, color TEXT DEFAULT '#5865F2');`
 	createFriendsTable := `CREATE TABLE IF NOT EXISTS friends (id INTEGER PRIMARY KEY AUTOINCREMENT, user1 TEXT, user2 TEXT, UNIQUE(user1, user2));`
 	createMessagesTable := `CREATE TABLE IF NOT EXISTS messages (id INTEGER PRIMARY KEY AUTOINCREMENT, sender TEXT, receiver TEXT, content TEXT, timestamp DATETIME DEFAULT CURRENT_TIMESTAMP);`
 	createServersTable := `CREATE TABLE IF NOT EXISTS servers (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, owner TEXT);`
 	createChannelsTable := `CREATE TABLE IF NOT EXISTS channels (id INTEGER PRIMARY KEY AUTOINCREMENT, server_id INTEGER, name TEXT, type TEXT DEFAULT 'text');`
 	createServerMembersTable := `CREATE TABLE IF NOT EXISTS server_members (id INTEGER PRIMARY KEY AUTOINCREMENT, server_id INTEGER, username TEXT, UNIQUE(server_id, username));`
+	createInvitesTable := `CREATE TABLE IF NOT EXISTS invites (code TEXT PRIMARY KEY, server_id INTEGER, creator TEXT);`
 
 	db.Exec(createUsersTable)
 	db.Exec(createFriendsTable)
@@ -55,6 +54,7 @@ func initDB() {
 	db.Exec(createServersTable)
 	db.Exec(createChannelsTable)
 	db.Exec(createServerMembersTable)
+	db.Exec(createInvitesTable)
 	fmt.Println("💾 Tables verified/created.")
 }
 
@@ -91,6 +91,10 @@ func main() {
 	http.HandleFunc("/api/channels/get", handleGetChannels)
 	http.HandleFunc("/api/server-messages/send", handleSendServerMessage)
 	http.HandleFunc("/api/server-messages/get", handleGetServerMessages)
+	
+	// Invite APIs
+	http.HandleFunc("/api/invites/generate", handleGenerateInvite)
+	http.HandleFunc("/api/invites/join", handleJoinByCode)
 	
 	http.HandleFunc("/ws", handleConnections)
 
@@ -365,4 +369,61 @@ func handleGetServerMessages(w http.ResponseWriter, r *http.Request) {
 	for rows.Next() { var id int; var s, c string; rows.Scan(&id, &s, &c); messages = append(messages, map[string]interface{}{"id": id, "sender": s, "content": c}) }
 	if messages == nil { messages = []map[string]interface{}{} }
 	json.NewEncoder(w).Encode(messages)
+}
+
+// --- Invite APIs ---
+func handleGenerateInvite(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		ServerID int    `json:"server_id"`
+		Creator  string `json:"creator"`
+	}
+	json.NewDecoder(r.Body).Decode(&req)
+
+	rand.Seed(time.Now().UnixNano())
+	const letters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+	b := make([]byte, 6)
+	for i := range b {
+		b[i] = letters[rand.Intn(len(letters))]
+	}
+	code := string(b)
+
+	dbMu.Lock()
+	_, err := db.Exec("INSERT INTO invites (code, server_id, creator) VALUES (?, ?, ?)", code, req.ServerID, req.Creator)
+	dbMu.Unlock()
+
+	if err != nil {
+		http.Error(w, "Error generating invite", http.StatusInternalServerError)
+		return
+	}
+
+	json.NewEncoder(w).Encode(map[string]string{"code": code})
+}
+
+func handleJoinByCode(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Code string `json:"code"`
+		User string `json:"user"`
+	}
+	json.NewDecoder(r.Body).Decode(&req)
+
+	var serverID int
+	err := db.QueryRow("SELECT server_id FROM invites WHERE code = ?", req.Code).Scan(&serverID)
+	if err != nil {
+		http.Error(w, "Invalid invite code", http.StatusNotFound)
+		return
+	}
+
+	dbMu.Lock()
+	_, err = db.Exec("INSERT OR IGNORE INTO server_members (server_id, username) VALUES (?, ?)", serverID, req.User)
+	dbMu.Unlock()
+
+	if err != nil {
+		http.Error(w, "Error joining server", http.StatusInternalServerError)
+		return
+	}
+
+	var serverName string
+	db.QueryRow("SELECT name FROM servers WHERE id = ?", serverID).Scan(&serverName)
+
+	json.NewEncoder(w).Encode(map[string]interface{}{"server_id": serverID, "server_name": serverName})
 }
