@@ -2,6 +2,8 @@ let activeChatUser = null;
 let activeChannelID = null;
 let socket;
 let typingTimeout;
+let currentServerID = null;
+let currentServerName = null;
 
 // Voice Variables
 let localStream = null;
@@ -33,93 +35,99 @@ document.addEventListener("DOMContentLoaded", async () => {
             const isMe = data.sender === currentUsername;
             appendDMMessage(isMe ? "You" : data.sender, data.content, isMe ? currentColor : "#5865F2", data.id);
         }
-
         if (data.type === "typing") {
             document.getElementById("dm-message-input").placeholder = `${data.user} is typing...`;
         } else if (data.type === "stop_typing") {
             document.getElementById("dm-message-input").placeholder = activeChannelID ? `Message #${document.getElementById("dm-chat-name").innerText.split(" ")[0].replace('#', '')}` : `Message @${activeChatUser}`;
         }
-
         if (data.type === "webrtc_signal") {
             if (!peerConnection) {
                 localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
                 peerConnection = new RTCPeerConnection(servers);
                 localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
-                
-                peerConnection.ontrack = (e) => {
-                    document.getElementById("remote-audio").srcObject = e.streams[0];
-                };
-                
+                peerConnection.ontrack = (e) => { document.getElementById("remote-audio").srcObject = e.streams[0]; };
                 peerConnection.onicecandidate = (e) => {
-                    if (e.candidate) {
-                        socket.send(JSON.stringify({
-                            type: "webrtc_signal", target: data.sender, signal: { candidate: e.candidate }
-                        }));
-                    }
+                    if (e.candidate) socket.send(JSON.stringify({ type: "webrtc_signal", target: data.sender, signal: { candidate: e.candidate } }));
                 };
                 document.getElementById("voice-overlay").style.display = "flex";
             }
-
             if (data.signal.sdp) {
                 await peerConnection.setRemoteDescription(new RTCSessionDescription(data.signal.sdp));
                 if (data.signal.sdp.type === "offer") {
                     const answer = await peerConnection.createAnswer();
                     await peerConnection.setLocalDescription(answer);
-                    socket.send(JSON.stringify({
-                        type: "webrtc_signal", target: data.sender, signal: { sdp: peerConnection.localDescription }
-                    }));
+                    socket.send(JSON.stringify({ type: "webrtc_signal", target: data.sender, signal: { sdp: peerConnection.localDescription } }));
                 }
             }
-            if (data.signal.candidate) {
-                await peerConnection.addIceCandidate(new RTCIceCandidate(data.signal.candidate));
-            }
+            if (data.signal.candidate) await peerConnection.addIceCandidate(new RTCIceCandidate(data.signal.candidate));
         }
     };
 
-    // 2. Load Data
-    try {
-        const res = await fetch(`/api/friends?user=${currentUsername}`);
-        const data = await res.json();
-        renderFriendsList(data.friends);
-    } catch (err) { console.log("Could not load friends."); }
+    // Load Base Sidebar (DMs & Friends)
+    renderBaseSidebar(currentUsername);
 
-    try {
-        const res = await fetch(`/api/servers/get?user=${currentUsername}`);
-        const servers = await res.json();
-        const divider = document.querySelector(".sidebar-divider");
-        servers.forEach(server => {
-            const newIcon = document.createElement("div");
-            newIcon.className = "server-icon";
-            newIcon.innerText = server.name.substring(0, 2).toUpperCase();
-            newIcon.title = server.name;
-            newIcon.onclick = () => loadServer(server.id, server.name);
-            divider.parentNode.insertBefore(newIcon, divider);
+    // 2. Modals setup
+    document.querySelectorAll("#settings-btn, #settings-btn-friends").forEach(btn => {
+        if(btn) btn.addEventListener("click", () => {
+            document.getElementById("settings-username").value = localStorage.getItem("chathub_username") || "User";
+            document.getElementById("settings-color").value = localStorage.getItem("chathub_color") || "#23a559";
+            document.getElementById("settings-modal").classList.add("active");
         });
-    } catch (err) { console.log("Could not load servers."); }
+    });
+    document.getElementById("close-settings").addEventListener("click", () => document.getElementById("settings-modal").classList.remove("active"));
 
-    try {
-        const res = await fetch(`/api/messages/recent?user=${currentUsername}`);
-        const contacts = await res.json();
-        const dmListContainer = document.getElementById("dm-list-container");
-        if (contacts.length > 0) {
-            dmListContainer.innerHTML = ""; 
-            contacts.forEach(contact => {
-                const dmDiv = document.createElement("div");
-                dmDiv.className = "dm-user";
-                dmDiv.onclick = () => openChat(contact);
-                dmDiv.innerHTML = `
-                    <div class="avatar" style="background: #5865F2; width: 32px; height: 32px; font-size: 0.9rem;">${contact.charAt(0).toUpperCase()}</div>
-                    <div class="dm-info">
-                        <span class="dm-name">${contact}</span>
-                        <span class="dm-status">Click to chat</span>
-                    </div>
-                `;
-                dmListContainer.appendChild(dmDiv);
-            });
-        }
-    } catch (err) { console.log("Could not load recent DMs."); }
+    document.getElementById("create-server-btn").addEventListener("click", () => document.getElementById("create-server-modal").classList.add("active"));
+    document.getElementById("close-create-server").addEventListener("click", () => document.getElementById("create-server-modal").classList.remove("active"));
+    
+    document.getElementById("close-create-channel").addEventListener("click", () => document.getElementById("create-channel-modal").classList.remove("active"));
 
-    // 3. Navigation
+    // Explore Logic
+    document.getElementById("explore-btn").addEventListener("click", async () => {
+        document.getElementById("explore-modal").classList.add("active");
+        const list = document.getElementById("public-servers-list");
+        list.innerHTML = "<p style='color: var(--text-muted); grid-column: span 2;'>Loading servers...</p>";
+        const res = await fetch("/api/servers/public");
+        const servers = await res.json();
+        list.innerHTML = servers.length === 0 ? "<p>No servers found.</p>" : "";
+        servers.forEach(server => {
+            const div = document.createElement("div");
+            div.className = "explore-card";
+            div.innerHTML = `
+                <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px;">
+                    <div class="avatar" style="background: var(--accent); width: 48px; height: 48px; font-size: 1.2rem;">${server.name.charAt(0).toUpperCase()}</div>
+                    <span style="font-weight: bold; color: white; font-size: 1.1rem;">${server.name}</span>
+                </div>
+                <button onclick="joinServer(${server.id}, '${server.name}')" style="background: #10b981; color: white; border: none; padding: 10px; width: 100%; border-radius: 8px; font-weight: bold; cursor: pointer;">Join Server</button>
+            `;
+            list.appendChild(div);
+        });
+    });
+    document.getElementById("close-explore").addEventListener("click", () => document.getElementById("explore-modal").classList.remove("active"));
+
+    // Load User's Servers into Sidebar
+    const res = await fetch(`/api/servers/get?user=${currentUsername}`);
+    const userServers = await res.json();
+    const divider = document.querySelector(".sidebar-divider");
+    userServers.forEach(server => {
+        const newIcon = document.createElement("div");
+        newIcon.className = "server-icon";
+        newIcon.innerText = server.name.substring(0, 2).toUpperCase();
+        newIcon.title = server.name;
+        newIcon.onclick = () => loadServer(server.id, server.name);
+        divider.parentNode.insertBefore(newIcon, divider);
+    });
+});
+
+// --- Render Base Sidebar (DMs & Friends) ---
+async function renderBaseSidebar(currentUsername) {
+    const channelList = document.getElementById("main-channel-list");
+    channelList.innerHTML = `
+        <div class="channel" id="nav-friends"><i class="fa-solid fa-user-group"></i> Friends</div>
+        <div class="channel active" id="nav-dms"><i class="fa-solid fa-inbox"></i> Direct Messages</div>
+        <div class="category" id="dm-category">DIRECT MESSAGES</div>
+        <div id="dm-list-container"></div>
+    `;
+
     document.getElementById("nav-friends").addEventListener("click", () => {
         document.getElementById("nav-friends").classList.add("active");
         document.getElementById("nav-dms").classList.remove("active");
@@ -133,69 +141,110 @@ document.addEventListener("DOMContentLoaded", async () => {
         document.getElementById("view-friends").style.display = "none";
     });
 
-    // 4. Typing
-    const dmInput = document.getElementById("dm-message-input");
-    dmInput.addEventListener("input", () => {
-        if (!socket || socket.readyState !== WebSocket.OPEN) return;
-        const target = activeChannelID ? `channel_${activeChannelID}` : activeChatUser;
-        if (!target) return;
-        socket.send(JSON.stringify({ type: "typing", user: currentUsername, target: target }));
-        clearTimeout(typingTimeout);
-        typingTimeout = setTimeout(() => {
-            socket.send(JSON.stringify({ type: "stop_typing", user: currentUsername, target: target }));
-        }, 2000);
-    });
+    // Load Friends List Content
+    const res = await fetch(`/api/friends?user=${currentUsername}`);
+    const data = await res.json();
+    renderFriendsList(data.friends);
 
-    // 5. Settings Modals
-    document.querySelectorAll("#settings-btn, #settings-btn-friends").forEach(btn => {
-        if(btn) btn.addEventListener("click", () => {
-            document.getElementById("settings-username").value = localStorage.getItem("chathub_username") || "User";
-            document.getElementById("settings-color").value = localStorage.getItem("chathub_color") || "#23a559";
-            document.getElementById("settings-modal").classList.add("active");
+    // Load Recent DMs
+    const dmRes = await fetch(`/api/messages/recent?user=${currentUsername}`);
+    const contacts = await dmRes.json();
+    const dmListContainer = document.getElementById("dm-list-container");
+    if (contacts.length > 0) {
+        dmListContainer.innerHTML = ""; 
+        contacts.forEach(contact => {
+            const dmDiv = document.createElement("div");
+            dmDiv.className = "dm-user";
+            dmDiv.onclick = () => openChat(contact);
+            dmDiv.innerHTML = `
+                <div class="avatar" style="background: #5865F2; width: 32px; height: 32px; font-size: 0.9rem;">${contact.charAt(0).toUpperCase()}</div>
+                <div class="dm-info">
+                    <span class="dm-name">${contact}</span>
+                    <span class="dm-status">Click to chat</span>
+                </div>
+            `;
+            dmListContainer.appendChild(dmDiv);
         });
-    });
-    document.getElementById("close-settings").addEventListener("click", () => document.getElementById("settings-modal").classList.remove("active"));
+    }
+}
 
-    // 6. Create Server Modal
-    document.getElementById("create-server-btn").addEventListener("click", () => {
-        document.getElementById("create-server-modal").classList.add("active");
-    });
-    document.getElementById("close-create-server").addEventListener("click", () => {
-        document.getElementById("create-server-modal").classList.remove("active");
-    });
+// --- Load Server Channels ---
+async function loadServer(serverID, serverName) {
+    currentServerID = serverID;
+    currentServerName = serverName;
+    
+    const channelList = document.getElementById("main-channel-list");
+    const res = await fetch(`/api/channels/get?server_id=${serverID}`);
+    const channels = await res.json();
 
-    // 7. Explore Modal
-    document.getElementById("explore-btn").addEventListener("click", async () => {
-        document.getElementById("explore-modal").classList.add("active");
-        const list = document.getElementById("public-servers-list");
-        list.innerHTML = "<p style='color: var(--text-muted); grid-column: span 2;'>Loading servers...</p>";
+    // Separate Text and Voice channels
+    const textChannels = channels.filter(c => c.type !== 'voice');
+    const voiceChannels = channels.filter(c => c.type === 'voice');
+
+    channelList.innerHTML = `
+        <div class="category" style="display: flex; justify-content: space-between; align-items: center;">
+            TEXT CHANNELS <i class="fa-solid fa-plus" style="cursor: pointer; color: var(--text-muted);" title="Create Channel" onclick="openCreateChannelModal()"></i>
+        </div>
+        <div id="text-channels-container"></div>
         
-        try {
-            const res = await fetch("/api/servers/public");
-            const servers = await res.json();
-            
-            list.innerHTML = "";
-            if (servers.length === 0) {
-                list.innerHTML = "<p style='color: var(--text-muted); grid-column: span 2;'>No servers found. Be the first to create one!</p>";
-                return;
-            }
+        <div class="category" style="display: flex; justify-content: space-between; align-items: center; margin-top: 20px;">
+            VOICE CHANNELS <i class="fa-solid fa-plus" style="cursor: pointer; color: var(--text-muted);" title="Create Voice Channel" onclick="openCreateChannelModal()"></i>
+        </div>
+        <div id="voice-channels-container"></div>
 
-            servers.forEach(server => {
-                const div = document.createElement("div");
-                div.className = "explore-card";
-                div.innerHTML = `
-                    <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px;">
-                        <div class="avatar" style="background: var(--accent); width: 48px; height: 48px; font-size: 1.2rem;">${server.name.charAt(0).toUpperCase()}</div>
-                        <span style="font-weight: bold; color: white; font-size: 1.1rem;">${server.name}</span>
-                    </div>
-                    <button onclick="joinServer(${server.id}, '${server.name}')" style="background: #10b981; color: white; border: none; padding: 10px; width: 100%; border-radius: 8px; font-weight: bold; cursor: pointer; transition: 0.2s;" onmouseover="this.style.background='#059669'" onmouseout="this.style.background='#10b981'">Join Server</button>
-                `;
-                list.appendChild(div);
-            });
-        } catch (err) { list.innerHTML = "<p style='color: #ff5c46; grid-column: span 2;'>Error loading servers.</p>"; }
+        <div style="padding: 16px; margin-top: 20px; display: flex; flex-direction: column; gap: 10px;">
+             <button onclick="promptInvite(${serverID})" style="background: #10b981; border: none; color: white; width: 100%; padding: 10px; border-radius: 12px; cursor: pointer; font-weight: bold; box-shadow: 0 4px 10px rgba(16, 185, 129, 0.2);">Invite Friends</button>
+             <button onclick="window.location.reload()" style="background: var(--bg-input); border: 1px solid var(--glass-border); color: white; width: 100%; padding: 10px; border-radius: 12px; cursor: pointer; font-weight: bold;">Back to DMs</button>
+        </div>
+    `;
+
+    const textContainer = document.getElementById("text-channels-container");
+    textChannels.forEach(chan => {
+        const chanDiv = document.createElement("div");
+        chanDiv.className = "channel";
+        chanDiv.innerHTML = `<i class="fa-solid fa-hashtag"></i> ${chan.name}`;
+        chanDiv.onclick = () => openServerChannel(chan.id, chan.name, serverName);
+        textContainer.appendChild(chanDiv);
     });
-    document.getElementById("close-explore").addEventListener("click", () => document.getElementById("explore-modal").classList.remove("active"));
-});
+
+    const voiceContainer = document.getElementById("voice-channels-container");
+    voiceChannels.forEach(chan => {
+        const chanDiv = document.createElement("div");
+        chanDiv.className = "channel";
+        chanDiv.innerHTML = `<i class="fa-solid fa-volume-high"></i> ${chan.name}`;
+        chanDiv.onclick = () => joinVoiceChannel(chan.name);
+        voiceContainer.appendChild(chanDiv);
+    });
+
+    document.getElementById("view-friends").style.display = "none";
+    document.getElementById("view-dms").style.display = "flex";
+    document.getElementById("dm-empty-state").innerHTML = `<h1 style="font-size: 3rem; color: white; margin-bottom: 10px;">Welcome to ${serverName}</h1><p>Select a channel to start chatting.</p>`;
+    document.getElementById("dm-active-chat").style.display = "none";
+    document.getElementById("dm-empty-state").style.display = "flex";
+}
+
+// --- Create Channel Logic ---
+function openCreateChannelModal() {
+    document.getElementById("new-channel-name").value = "";
+    document.getElementById("create-channel-modal").classList.add("active");
+}
+
+async function submitCreateChannel() {
+    const name = document.getElementById("new-channel-name").value.trim();
+    const type = document.getElementById("new-channel-type").value;
+    
+    if (!name) return alert("Please enter a channel name.");
+    
+    const cleanName = name.toLowerCase().replace(/\s+/g, '-');
+
+    await fetch("/api/channels/create", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ server_id: currentServerID, name: cleanName, type: type })
+    });
+    
+    document.getElementById("create-channel-modal").classList.remove("active");
+    loadServer(currentServerID, currentServerName);
+}
 
 // --- Create & Join Server Logic ---
 async function createNewServer() {
@@ -264,16 +313,12 @@ async function joinVoiceChannel(channelName) {
         peerConnection = new RTCPeerConnection(servers);
         localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
 
-        peerConnection.ontrack = (event) => {
-            document.getElementById("remote-audio").srcObject = event.streams[0];
-        };
+        peerConnection.ontrack = (event) => { document.getElementById("remote-audio").srcObject = event.streams[0]; };
 
         peerConnection.onicecandidate = (event) => {
             if (event.candidate) {
                 const targetUser = prompt("Who do you want to call? (Enter their username)");
-                if (targetUser) {
-                    socket.send(JSON.stringify({ type: "webrtc_signal", target: targetUser, signal: { candidate: event.candidate } }));
-                }
+                if (targetUser) socket.send(JSON.stringify({ type: "webrtc_signal", target: targetUser, signal: { candidate: event.candidate } }));
             }
         };
 
@@ -281,12 +326,8 @@ async function joinVoiceChannel(channelName) {
         await peerConnection.setLocalDescription(offer);
 
         const targetUser = prompt("Who do you want to call? (Enter their username)");
-        if (targetUser) {
-            socket.send(JSON.stringify({ type: "webrtc_signal", target: targetUser, signal: { sdp: peerConnection.localDescription } }));
-        }
-    } catch (err) {
-        alert("Could not access microphone.");
-    }
+        if (targetUser) socket.send(JSON.stringify({ type: "webrtc_signal", target: targetUser, signal: { sdp: peerConnection.localDescription } }));
+    } catch (err) { alert("Could not access microphone."); }
 }
 
 function leaveVoiceChannel() {
@@ -352,7 +393,6 @@ async function deleteMessage(msgID) {
     }
 }
 
-// --- DM & Server Loaders ---
 async function openChat(friendName) {
     activeChatUser = friendName;
     activeChannelID = null;
@@ -392,43 +432,6 @@ async function openChat(friendName) {
         if (messages.length === 0) appendDMMessage(friendName, "This is the start of your conversation.", "#5865F2", "welcome");
         else messages.forEach(msg => appendDMMessage(msg.sender === currentUser ? "You" : friendName, msg.content, msg.sender === currentUser ? currentColor : "#5865F2", msg.id));
     } catch (err) { console.error(err); }
-}
-
-async function loadServer(serverID, serverName) {
-    const channelList = document.querySelector(".channel-list");
-    const res = await fetch(`/api/channels/get?server_id=${serverID}`);
-    const channels = await res.json();
-
-    channelList.innerHTML = `
-        <div class="category" style="display: flex; justify-content: space-between; align-items: center;">TEXT CHANNELS <i class="fa-solid fa-plus" style="cursor: pointer; color: var(--text-muted);" title="Create Channel" onclick="promptCreateChannel(${serverID}, '${serverName}')"></i></div>
-        <div id="server-channels-container"></div>
-        <div style="padding: 16px; margin-top: 20px; display: flex; flex-direction: column; gap: 10px;">
-             <button onclick="promptInvite(${serverID})" style="background: #10b981; border: none; color: white; width: 100%; padding: 10px; border-radius: 12px; cursor: pointer; font-weight: bold; box-shadow: 0 4px 10px rgba(16, 185, 129, 0.2);">Invite Friends</button>
-             <button onclick="window.location.reload()" style="background: var(--bg-input); border: 1px solid var(--glass-border); color: white; width: 100%; padding: 10px; border-radius: 12px; cursor: pointer; font-weight: bold;">Back to DMs</button>
-        </div>
-    `;
-
-    const container = document.getElementById("server-channels-container");
-    channels.forEach(chan => {
-        const chanDiv = document.createElement("div");
-        chanDiv.className = "channel";
-        chanDiv.innerHTML = `<i class="fa-solid fa-hashtag"></i> ${chan.name}`;
-        chanDiv.onclick = () => openServerChannel(chan.id, chan.name, serverName);
-        container.appendChild(chanDiv);
-    });
-
-    document.getElementById("view-friends").style.display = "none";
-    document.getElementById("view-dms").style.display = "flex";
-    document.getElementById("dm-empty-state").innerHTML = `<h1 style="font-size: 3rem; color: white; margin-bottom: 10px;">Welcome to ${serverName}</h1><p>Select a channel to start chatting.</p>`;
-    document.getElementById("dm-active-chat").style.display = "none";
-    document.getElementById("dm-empty-state").style.display = "flex";
-}
-
-async function promptCreateChannel(serverID, serverName) {
-    const channelName = prompt("Enter a name for the new channel:");
-    if (!channelName) return;
-    await fetch("/api/channels/create", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ server_id: serverID, name: channelName.toLowerCase().replace(/\s+/g, '-') }) });
-    loadServer(serverID, serverName);
 }
 
 async function promptInvite(serverID) {
