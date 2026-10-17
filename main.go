@@ -58,6 +58,7 @@ func main() {
 	http.HandleFunc("/api/friends", handleFriends)
 	http.HandleFunc("/api/messages/send", handleSendMessage)
 	http.HandleFunc("/api/messages/get", handleGetMessages)
+	http.HandleFunc("/api/messages/recent", handleGetRecentDMs) // NEW
 	http.HandleFunc("/api/messages/edit", handleEditMessage)
 	http.HandleFunc("/api/messages/delete", handleDeleteMessage)
 	http.HandleFunc("/api/profile/update", handleUpdateProfile)
@@ -65,7 +66,7 @@ func main() {
 	// Server APIs
 	http.HandleFunc("/api/servers/create", handleCreateServer)
 	http.HandleFunc("/api/servers/get", handleGetServers)
-	http.HandleFunc("/api/servers/public", handleGetPublicServers) // NEW
+	http.HandleFunc("/api/servers/public", handleGetPublicServers)
 	http.HandleFunc("/api/servers/join", handleJoinServer)
 	http.HandleFunc("/api/channels/create", handleCreateChannel)
 	http.HandleFunc("/api/channels/get", handleGetChannels)
@@ -220,6 +221,29 @@ func handleGetMessages(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(messages)
 }
 
+// --- NEW: Recent DMs API ---
+func handleGetRecentDMs(w http.ResponseWriter, r *http.Request) {
+	user := r.URL.Query().Get("user")
+	query := `
+		SELECT DISTINCT 
+			CASE WHEN sender = ? THEN receiver ELSE sender END as contact
+		FROM messages 
+		WHERE (sender = ? AND receiver NOT LIKE 'channel_%') 
+		   OR (receiver = ? AND sender NOT LIKE 'channel_%')
+	`
+	rows, _ := db.Query(query, user, user, user)
+	defer rows.Close()
+
+	var contacts []string
+	for rows.Next() {
+		var c string
+		rows.Scan(&c)
+		contacts = append(contacts, c)
+	}
+	if contacts == nil { contacts = []string{} }
+	json.NewEncoder(w).Encode(contacts)
+}
+
 func handleEditMessage(w http.ResponseWriter, r *http.Request) {
 	var req struct { ID int; Content string }
 	json.NewDecoder(r.Body).Decode(&req)
@@ -261,11 +285,9 @@ func handleGetServers(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(servers)
 }
 
-// --- NEW: Public Servers ---
 func handleGetPublicServers(w http.ResponseWriter, r *http.Request) {
 	rows, _ := db.Query("SELECT id, name FROM servers")
 	defer rows.Close()
-
 	var servers []map[string]interface{}
 	for rows.Next() {
 		var id int
