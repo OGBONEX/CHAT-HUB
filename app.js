@@ -1,8 +1,11 @@
-document.addEventListener("DOMContentLoaded", async () => {
-    // 1. Load User Info
-    let currentUsername = localStorage.getItem("chathub_username") || "User";
-    let currentColor = localStorage.getItem("chathub_color") || "#23a559"; // Default green
+let activeChatUser = null;
+let socket;
 
+document.addEventListener("DOMContentLoaded", async () => {
+    // 1. Load User Info & Color
+    let currentUsername = localStorage.getItem("chathub_username") || "User";
+    let currentColor = localStorage.getItem("chathub_color") || "#23a559"; 
+    
     const displayName = document.getElementById("user-display-name");
     const userAvatar = document.getElementById("user-avatar");
     
@@ -12,7 +15,72 @@ document.addEventListener("DOMContentLoaded", async () => {
         userAvatar.style.background = currentColor;
     }
 
-    // 2. Settings Modal Logic
+    // 2. Connect WebSocket for Live Messages
+    const wsProtocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
+    socket = new WebSocket(`${wsProtocol}${window.location.host}/ws?user=${currentUsername}`);
+
+    socket.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        if (data.type === "new_message") {
+            // If we are currently looking at this chat, add it to the screen
+            if (activeChatUser === data.sender || activeChatUser === data.receiver) {
+                const isMe = data.sender === currentUsername;
+                appendDMMessage(isMe ? "You" : data.sender, data.content, isMe ? currentColor : "#5865F2");
+            }
+        }
+    };
+
+    // 3. Load Friends from Database
+    try {
+        const res = await fetch(`/api/friends?user=${currentUsername}`);
+        const data = await res.json();
+        renderFriendsList(data.friends);
+    } catch (err) { console.log("Could not load friends."); }
+
+    // 4. Navigation Logic (Tabs)
+    const navFriends = document.getElementById("nav-friends");
+    const navDms = document.getElementById("nav-dms");
+    const viewFriends = document.getElementById("view-friends");
+    const viewDms = document.getElementById("view-dms");
+
+    if (navFriends && navDms) {
+        navFriends.addEventListener("click", () => {
+            navFriends.classList.add("active");
+            navDms.classList.remove("active");
+            viewFriends.style.display = "flex";
+            viewDms.style.display = "none";
+        });
+
+        navDms.addEventListener("click", () => {
+            navDms.classList.add("active");
+            navFriends.classList.remove("active");
+            viewDms.style.display = "flex";
+            viewFriends.style.display = "none";
+        });
+    }
+
+    // 5. Send Message Logic
+    const dmInput = document.getElementById("dm-message-input");
+    if (dmInput) {
+        dmInput.addEventListener("keypress", async (e) => {
+            if (e.key === "Enter" && dmInput.value.trim() !== "" && activeChatUser) {
+                const text = dmInput.value.trim();
+                
+                // Draw locally immediately
+                appendDMMessage("You", text, currentColor);
+                dmInput.value = "";
+
+                // Save to DB (WebSocket will push it to the receiver)
+                fetch("/api/messages/send", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ sender: currentUsername, receiver: activeChatUser, content: text })
+                });
+            }
+        });
+    }
+
+    // 6. Settings Modal Logic
     const settingsBtn = document.getElementById("settings-btn");
     const settingsModal = document.getElementById("settings-modal");
     const closeSettings = document.getElementById("close-settings");
@@ -35,7 +103,117 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
 });
 
-// 3. Save Profile Logic
+// --- Open Chat and Load History ---
+async function openChat(friendName) {
+    activeChatUser = friendName;
+    const currentUser = localStorage.getItem("chathub_username") || "User";
+    const currentColor = localStorage.getItem("chathub_color") || "#23a559";
+    
+    // Switch to DM view
+    document.getElementById("nav-dms").click();
+
+    // Show Chat UI
+    document.getElementById("dm-empty-state").style.display = "none";
+    document.getElementById("dm-active-chat").style.display = "flex";
+
+    // Update Header
+    document.getElementById("dm-chat-name").innerText = friendName;
+    document.getElementById("dm-chat-avatar").innerText = friendName.charAt(0).toUpperCase();
+    document.getElementById("dm-chat-avatar").style.background = "#5865F2"; // Friend's color
+    document.getElementById("dm-message-input").placeholder = `Message @${friendName}`;
+
+    // Clear current messages
+    const container = document.getElementById("dm-messages-container");
+    container.innerHTML = "";
+
+    // Load History from DB
+    try {
+        const res = await fetch(`/api/messages/get?user1=${currentUser}&user2=${friendName}`);
+        const messages = await res.json();
+
+        if (messages.length === 0) {
+            appendDMMessage(friendName, "This is the start of your conversation.", "#5865F2");
+        } else {
+            messages.forEach(msg => {
+                const isMe = msg.sender === currentUser;
+                appendDMMessage(isMe ? "You" : friendName, msg.content, isMe ? currentColor : "#5865F2");
+            });
+        }
+    } catch (err) { console.error(err); }
+}
+
+// --- Append Message to UI ---
+function appendDMMessage(author, text, color) {
+    const container = document.getElementById("dm-messages-container");
+    const msgDiv = document.createElement("div");
+    msgDiv.className = "message";
+    msgDiv.innerHTML = `
+        <div class="avatar" style="background: ${color};">${author.charAt(0).toUpperCase()}</div>
+        <div class="message-content">
+            <div class="message-header">
+                <span class="author" style="color: ${color};">${author}</span>
+                <span class="time">Just now</span>
+            </div>
+            <div class="text">${text}</div>
+        </div>
+    `;
+    container.appendChild(msgDiv);
+    container.scrollTop = container.scrollHeight;
+}
+
+// --- Friends Logic ---
+async function addFriend() {
+    const friendName = document.getElementById("friend-search").value.trim();
+    if (!friendName) return;
+    
+    const currentUser = localStorage.getItem("chathub_username") || "User";
+    if (friendName.toLowerCase() === currentUser.toLowerCase()) {
+        alert("You can't add yourself!"); return;
+    }
+
+    try {
+        const response = await fetch("/api/friends", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ user: currentUser, friend: friendName })
+        });
+
+        if (response.ok) {
+            const getRes = await fetch(`/api/friends?user=${currentUser}`);
+            const data = await getRes.json();
+            renderFriendsList(data.friends);
+            document.getElementById("friend-search").value = "";
+        } else {
+            alert("User not found.");
+        }
+    } catch (err) { alert("Error adding friend."); }
+}
+
+function renderFriendsList(friends) {
+    const friendsList = document.getElementById("friends-list");
+    if (!friendsList) return;
+    
+    friendsList.innerHTML = "";
+    if (!friends || friends.length === 0) {
+        friendsList.innerHTML = `<p style="color: var(--text-muted); font-size: 0.9rem;">You don't have any friends yet.</p>`;
+        return;
+    }
+
+    friends.forEach(friendName => {
+        const friendDiv = document.createElement("div");
+        friendDiv.style.cssText = "display: flex; align-items: center; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--hover);";
+        friendDiv.innerHTML = `
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <div class="avatar" style="background: #5865F2;">${friendName.charAt(0).toUpperCase()}</div>
+                <span style="font-weight: bold;">${friendName}</span>
+            </div>
+            <button onclick="openChat('${friendName}')" style="background: #23a559; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer;">Message</button>
+        `;
+        friendsList.appendChild(friendDiv);
+    });
+}
+
+// --- Save Profile Logic ---
 async function saveProfile() {
     const oldName = localStorage.getItem("chathub_username") || "User";
     const newName = document.getElementById("settings-username").value.trim();
@@ -46,7 +224,6 @@ async function saveProfile() {
         return;
     }
 
-    // Send to backend to update DB
     try {
         const res = await fetch("/api/profile/update", {
             method: "POST",
@@ -55,27 +232,23 @@ async function saveProfile() {
         });
 
         if (res.ok) {
-            // Update local storage
             localStorage.setItem("chathub_username", newName);
             localStorage.setItem("chathub_color", newColor);
 
-            // Update UI
             document.getElementById("user-display-name").innerText = newName;
             const avatar = document.getElementById("user-avatar");
             avatar.innerText = newName.charAt(0).toUpperCase();
             avatar.style.background = newColor;
 
-            alert("Profile updated successfully!");
+            alert("Profile updated!");
             document.getElementById("settings-modal").classList.remove("active");
         } else {
             alert("That username is already taken.");
         }
-    } catch (err) {
-        alert("Error saving profile.");
-    }
+    } catch (err) { alert("Error saving profile."); }
 }
 
-// 4. Logout Logic
+// --- Logout ---
 function logout() {
     localStorage.removeItem("chathub_username");
     localStorage.removeItem("chathub_color");
