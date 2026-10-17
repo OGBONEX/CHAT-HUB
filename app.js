@@ -36,7 +36,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
     };
 
-    // 2. Load Friends & Servers
+    // 2. Load Friends, Servers, and Recent DMs
     try {
         const res = await fetch(`/api/friends?user=${currentUsername}`);
         const data = await res.json();
@@ -56,6 +56,30 @@ document.addEventListener("DOMContentLoaded", async () => {
             divider.parentNode.insertBefore(newIcon, divider);
         });
     } catch (err) { console.log("Could not load servers."); }
+
+    // Load Recent DMs
+    try {
+        const res = await fetch(`/api/messages/recent?user=${currentUsername}`);
+        const contacts = await res.json();
+        const dmListContainer = document.getElementById("dm-list-container");
+        
+        if (contacts.length > 0) {
+            dmListContainer.innerHTML = ""; 
+            contacts.forEach(contact => {
+                const dmDiv = document.createElement("div");
+                dmDiv.className = "dm-user";
+                dmDiv.onclick = () => openChat(contact);
+                dmDiv.innerHTML = `
+                    <div class="avatar" style="background: #5865F2;">${contact.charAt(0).toUpperCase()}</div>
+                    <div class="dm-info">
+                        <span class="dm-name">${contact}</span>
+                        <span class="dm-status">Click to chat</span>
+                    </div>
+                `;
+                dmListContainer.appendChild(dmDiv);
+            });
+        }
+    } catch (err) { console.log("Could not load recent DMs."); }
 
     // 3. Navigation
     document.getElementById("nav-friends").addEventListener("click", () => {
@@ -164,7 +188,6 @@ async function joinServer(serverID, serverName) {
         alert(`Joined ${serverName}!`);
         document.getElementById("explore-modal").classList.remove("active");
         
-        // Add icon to sidebar if not already there
         const newIcon = document.createElement("div");
         newIcon.className = "server-icon";
         newIcon.innerText = serverName.substring(0, 2).toUpperCase();
@@ -289,6 +312,25 @@ async function openChat(friendName) {
                         const isMe = msg.sender === currentUser;
                         appendDMMessage(isMe ? "You" : friendName, msg.content, isMe ? currentColor : "#5865F2", msg.id);
                     });
+                    
+                    // Refresh recent DMs list
+                    fetch(`/api/messages/recent?user=${currentUser}`).then(res=>res.json()).then(contacts=>{
+                        const dmListContainer = document.getElementById("dm-list-container");
+                        dmListContainer.innerHTML = "";
+                        contacts.forEach(contact => {
+                            const dmDiv = document.createElement("div");
+                            dmDiv.className = "dm-user";
+                            dmDiv.onclick = () => openChat(contact);
+                            dmDiv.innerHTML = `
+                                <div class="avatar" style="background: #5865F2;">${contact.charAt(0).toUpperCase()}</div>
+                                <div class="dm-info">
+                                    <span class="dm-name">${contact}</span>
+                                    <span class="dm-status">Click to chat</span>
+                                </div>
+                            `;
+                            dmListContainer.appendChild(dmDiv);
+                        });
+                    });
                 });
             });
         }
@@ -358,125 +400,4 @@ async function saveProfile() {
     });
 
     if (res.ok) {
-        localStorage.setItem("chathub_username", newName);
-        localStorage.setItem("chathub_color", newColor);
-        document.getElementById("user-display-name").innerText = newName;
-        const avatar = document.getElementById("user-avatar");
-        avatar.innerText = newName.charAt(0).toUpperCase();
-        avatar.style.background = newColor;
-        alert("Profile updated!");
-        document.getElementById("settings-modal").classList.remove("active");
-    } else { alert("That username is already taken."); }
-}
-
-// --- Servers & Channels ---
-async function loadServer(serverID, serverName) {
-    const channelList = document.querySelector(".channel-list");
-    const res = await fetch(`/api/channels/get?server_id=${serverID}`);
-    const channels = await res.json();
-
-    channelList.innerHTML = `
-        <div class="category" style="display: flex; justify-content: space-between; align-items: center;">
-            TEXT CHANNELS
-            <i class="fa-solid fa-plus" style="cursor: pointer; color: var(--text-muted);" title="Create Channel" onclick="promptCreateChannel(${serverID}, '${serverName}')"></i>
-        </div>
-        <div id="server-channels-container"></div>
-        <div style="padding: 16px; margin-top: 20px; display: flex; flex-direction: column; gap: 10px;">
-             <button onclick="promptInvite(${serverID})" style="background: #23a559; border: none; color: white; width: 100%; padding: 8px; border-radius: 4px; cursor: pointer; font-weight: bold;">Invite Friends</button>
-             <button onclick="window.location.reload()" style="background: var(--bg-input); border: 1px solid var(--border-color); color: white; width: 100%; padding: 8px; border-radius: 4px; cursor: pointer; font-weight: bold;">Back to DMs</button>
-        </div>
-    `;
-
-    const container = document.getElementById("server-channels-container");
-    channels.forEach(chan => {
-        const chanDiv = document.createElement("div");
-        chanDiv.className = "channel";
-        chanDiv.innerHTML = `<i class="fa-solid fa-hashtag"></i> ${chan.name}`;
-        chanDiv.onclick = () => openServerChannel(chan.id, chan.name, serverName);
-        container.appendChild(chanDiv);
-    });
-
-    document.getElementById("view-friends").style.display = "none";
-    document.getElementById("view-dms").style.display = "flex";
-    document.getElementById("dm-empty-state").innerHTML = `
-        <h1 style="font-size: 3rem; color: white; margin-bottom: 10px;">Welcome to ${serverName}</h1>
-        <p>Select a channel to start chatting.</p>
-    `;
-    document.getElementById("dm-active-chat").style.display = "none";
-    document.getElementById("dm-empty-state").style.display = "flex";
-}
-
-async function promptCreateChannel(serverID, serverName) {
-    const channelName = prompt("Enter a name for the new channel:");
-    if (!channelName) return;
-    const cleanName = channelName.toLowerCase().replace(/\s+/g, '-');
-    await fetch("/api/channels/create", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ server_id: serverID, name: cleanName })
-    });
-    loadServer(serverID, serverName);
-}
-
-async function promptInvite(serverID) {
-    const friendName = prompt("Enter the username of the friend you want to invite:");
-    if (!friendName) return;
-    const res = await fetch("/api/servers/join", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ server_id: serverID, user: friendName })
-    });
-    if (res.ok) alert(`Invited ${friendName} to the server!`);
-    else alert("Failed to invite user.");
-}
-
-async function openServerChannel(channelID, channelName, serverName) {
-    activeChannelID = channelID;
-    activeChatUser = null;
-    const currentUser = localStorage.getItem("chathub_username") || "User";
-    const currentColor = localStorage.getItem("chathub_color") || "#23a559";
-
-    document.getElementById("dm-empty-state").style.display = "none";
-    document.getElementById("dm-active-chat").style.display = "flex";
-    document.getElementById("dm-chat-name").innerText = `#${channelName} (${serverName})`;
-    document.getElementById("dm-chat-avatar").style.display = "none";
-    document.getElementById("dm-message-input").placeholder = `Message #${channelName}`;
-
-    const container = document.getElementById("dm-messages-container");
-    container.innerHTML = "";
-
-    const dmInput = document.getElementById("dm-message-input");
-    dmInput.onkeypress = async (e) => {
-        if (e.key === "Enter" && dmInput.value.trim() !== "") {
-            const text = dmInput.value.trim();
-            dmInput.value = "";
-            fetch("/api/server-messages/send", {
-                method: "POST", headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ channel_id: channelID, sender: currentUser, content: text })
-            }).then(() => {
-                fetch(`/api/server-messages/get?channel_id=${channelID}`).then(res=>res.json()).then(messages=>{
-                    container.innerHTML = "";
-                    messages.forEach(msg => {
-                        const isMe = msg.sender === currentUser;
-                        appendDMMessage(isMe ? "You" : msg.sender, msg.content, isMe ? currentColor : "#5865F2", msg.id);
-                    });
-                });
-            });
-        }
-    };
-
-    const res = await fetch(`/api/server-messages/get?channel_id=${channelID}`);
-    const messages = await res.json();
-    if (messages.length === 0) {
-        appendDMMessage("System", `Welcome to #${channelName}!`, "#ff5c46", "welcome");
-    } else {
-        messages.forEach(msg => {
-            const isMe = msg.sender === currentUser;
-            appendDMMessage(isMe ? "You" : msg.sender, msg.content, isMe ? currentColor : "#5865F2", msg.id);
-        });
-    }
-}
-
-function logout() {
-    localStorage.removeItem("chathub_username");
-    localStorage.removeItem("chathub_color");
-    window.location.href = "index.html";
-}
+        localStorage.setItem("chathub
