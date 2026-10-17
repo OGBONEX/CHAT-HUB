@@ -22,7 +22,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     socket.onmessage = (event) => {
         const data = JSON.parse(event.data);
         if (data.type === "new_message") {
-            // If we are currently looking at this chat, add it to the screen
             if (activeChatUser === data.sender || activeChatUser === data.receiver) {
                 const isMe = data.sender === currentUsername;
                 appendDMMessage(isMe ? "You" : data.sender, data.content, isMe ? currentColor : "#5865F2");
@@ -66,11 +65,9 @@ document.addEventListener("DOMContentLoaded", async () => {
             if (e.key === "Enter" && dmInput.value.trim() !== "" && activeChatUser) {
                 const text = dmInput.value.trim();
                 
-                // Draw locally immediately
                 appendDMMessage("You", text, currentColor);
                 dmInput.value = "";
 
-                // Save to DB (WebSocket will push it to the receiver)
                 fetch("/api/messages/send", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
@@ -87,7 +84,6 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     if (settingsBtn) {
         settingsBtn.addEventListener("click", () => {
-            // Pre-fill the form with current data
             document.getElementById("settings-username").value = localStorage.getItem("chathub_username") || "User";
             document.getElementById("settings-color").value = localStorage.getItem("chathub_color") || "#23a559";
             settingsModal.classList.add("active");
@@ -95,10 +91,42 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
 
     if (closeSettings) closeSettings.addEventListener("click", () => settingsModal.classList.remove("active"));
-    
     if (settingsModal) {
         settingsModal.addEventListener("click", (e) => {
             if (e.target === settingsModal) settingsModal.classList.remove("active");
+        });
+    }
+
+    // 7. Create Server Logic
+    const createServerBtn = document.getElementById("create-server-btn");
+    if (createServerBtn) {
+        createServerBtn.addEventListener("click", async () => {
+            const serverName = prompt("Enter a name for your new server:");
+            if (serverName && serverName.trim() !== "") {
+                try {
+                    const res = await fetch("/api/servers/create", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ name: serverName, owner: currentUsername })
+                    });
+                    const data = await res.json();
+
+                    if (data.server_id) {
+                        const newIcon = document.createElement("div");
+                        newIcon.className = "server-icon";
+                        newIcon.innerText = serverName.substring(0, 2).toUpperCase();
+                        newIcon.title = serverName;
+                        
+                        const divider = document.querySelector(".sidebar-divider");
+                        divider.parentNode.insertBefore(newIcon, divider);
+
+                        // Automatically click into the new server
+                        loadServer(data.server_id, serverName);
+                    }
+                } catch (err) {
+                    alert("Error creating server.");
+                }
+            }
         });
     }
 });
@@ -109,24 +137,19 @@ async function openChat(friendName) {
     const currentUser = localStorage.getItem("chathub_username") || "User";
     const currentColor = localStorage.getItem("chathub_color") || "#23a559";
     
-    // Switch to DM view
     document.getElementById("nav-dms").click();
 
-    // Show Chat UI
     document.getElementById("dm-empty-state").style.display = "none";
     document.getElementById("dm-active-chat").style.display = "flex";
 
-    // Update Header
     document.getElementById("dm-chat-name").innerText = friendName;
     document.getElementById("dm-chat-avatar").innerText = friendName.charAt(0).toUpperCase();
-    document.getElementById("dm-chat-avatar").style.background = "#5865F2"; // Friend's color
+    document.getElementById("dm-chat-avatar").style.background = "#5865F2";
     document.getElementById("dm-message-input").placeholder = `Message @${friendName}`;
 
-    // Clear current messages
     const container = document.getElementById("dm-messages-container");
     container.innerHTML = "";
 
-    // Load History from DB
     try {
         const res = await fetch(`/api/messages/get?user1=${currentUser}&user2=${friendName}`);
         const messages = await res.json();
@@ -201,13 +224,13 @@ function renderFriendsList(friends) {
 
     friends.forEach(friendName => {
         const friendDiv = document.createElement("div");
-        friendDiv.style.cssText = "display: flex; align-items: center; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--hover);";
+        friendDiv.style.cssText = "display: flex; align-items: center; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--border-color);";
         friendDiv.innerHTML = `
             <div style="display: flex; align-items: center; gap: 10px;">
                 <div class="avatar" style="background: #5865F2;">${friendName.charAt(0).toUpperCase()}</div>
-                <span style="font-weight: bold;">${friendName}</span>
+                <span style="font-weight: bold; color: white;">${friendName}</span>
             </div>
-            <button onclick="openChat('${friendName}')" style="background: #23a559; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer;">Message</button>
+            <button onclick="openChat('${friendName}')" style="background: #23a559; color: white; border: none; padding: 8px 12px; border-radius: 4px; cursor: pointer; font-weight: bold;">Message</button>
         `;
         friendsList.appendChild(friendDiv);
     });
@@ -246,6 +269,46 @@ async function saveProfile() {
             alert("That username is already taken.");
         }
     } catch (err) { alert("Error saving profile."); }
+}
+
+// --- Load a Server's Channels ---
+async function loadServer(serverID, serverName) {
+    const channelList = document.querySelector(".channel-list");
+
+    try {
+        const res = await fetch(`/api/channels/get?server_id=${serverID}`);
+        const channels = await res.json();
+
+        // Redraw the Channel Sidebar
+        channelList.innerHTML = `
+            <div class="category">TEXT CHANNELS</div>
+            <div id="server-channels-container"></div>
+            <div style="padding: 16px; margin-top: 20px;">
+                 <button onclick="window.location.reload()" style="background: var(--bg-input); border: 1px solid var(--border-color); color: white; width: 100%; padding: 8px; border-radius: 4px; cursor: pointer; font-weight: bold;">Back to DMs</button>
+            </div>
+        `;
+
+        const container = document.getElementById("server-channels-container");
+        channels.forEach(chan => {
+            const chanDiv = document.createElement("div");
+            chanDiv.className = "channel";
+            chanDiv.innerHTML = `<i class="fa-solid fa-hashtag"></i> ${chan.name}`;
+            container.appendChild(chanDiv);
+        });
+
+        // Update Chat Area to welcome the server
+        document.getElementById("view-friends").style.display = "none";
+        document.getElementById("view-dms").style.display = "flex";
+        document.getElementById("dm-empty-state").innerHTML = `
+            <h1 style="font-size: 3rem; color: white; margin-bottom: 10px;">Welcome to ${serverName}</h1>
+            <p>This is the beginning of the ${serverName} server.</p>
+        `;
+        document.getElementById("dm-active-chat").style.display = "none";
+        document.getElementById("dm-empty-state").style.display = "flex";
+
+    } catch (err) {
+        console.error("Error loading server:", err);
+    }
 }
 
 // --- Logout ---
