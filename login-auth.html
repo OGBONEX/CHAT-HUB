@@ -49,18 +49,33 @@
     </div>
 
     <script>
-        function loginAccount() {
-            const id = document.getElementById("login-id").value;
+        async function loginAccount() {
+            const identifier = document.getElementById("login-id").value;
             const password = document.getElementById("login-password").value;
 
-            if (!id || !password) {
+            if (!identifier || !password) {
                 alert("Please fill in all fields.");
                 return;
             }
 
-            // Here you will eventually verify the password with the Go backend
-            alert("Login successful! Redirecting to app...");
-            window.location.href = "app.html";
+            try {
+                const res = await fetch("/api/login", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ identifier, password })
+                });
+
+                if (res.ok) {
+                    const data = await res.json();
+                    localStorage.setItem("chathub_username", data.username);
+                    alert("Login successful! Redirecting...");
+                    window.location.href = "app.html";
+                } else {
+                    alert("Invalid username or password.");
+                }
+            } catch (err) {
+                alert("Could not connect to server.");
+            }
         }
     </script>
 </body>
