@@ -177,7 +177,6 @@ async function loadServer(serverID, serverName) {
     const res = await fetch(`/api/channels/get?server_id=${serverID}`);
     const channels = await res.json();
 
-    // Separate Text and Voice channels
     const textChannels = channels.filter(c => c.type !== 'voice');
     const voiceChannels = channels.filter(c => c.type === 'voice');
 
@@ -193,7 +192,7 @@ async function loadServer(serverID, serverName) {
         <div id="voice-channels-container"></div>
 
         <div style="padding: 16px; margin-top: 20px; display: flex; flex-direction: column; gap: 10px;">
-             <button onclick="promptInvite(${serverID})" style="background: #10b981; border: none; color: white; width: 100%; padding: 10px; border-radius: 12px; cursor: pointer; font-weight: bold; box-shadow: 0 4px 10px rgba(16, 185, 129, 0.2);">Invite Friends</button>
+             <button onclick="generateInviteLink(${serverID})" style="background: #10b981; border: none; color: white; width: 100%; padding: 10px; border-radius: 12px; cursor: pointer; font-weight: bold; box-shadow: 0 4px 10px rgba(16, 185, 129, 0.2);">Invite Friends</button>
              <button onclick="window.location.reload()" style="background: var(--bg-input); border: 1px solid var(--glass-border); color: white; width: 100%; padding: 10px; border-radius: 12px; cursor: pointer; font-weight: bold;">Back to DMs</button>
         </div>
     `;
@@ -232,9 +231,7 @@ function openCreateChannelModal() {
 async function submitCreateChannel() {
     const name = document.getElementById("new-channel-name").value.trim();
     const type = document.getElementById("new-channel-type").value;
-    
     if (!name) return alert("Please enter a channel name.");
-    
     const cleanName = name.toLowerCase().replace(/\s+/g, '-');
 
     await fetch("/api/channels/create", {
@@ -434,12 +431,27 @@ async function openChat(friendName) {
     } catch (err) { console.error(err); }
 }
 
-async function promptInvite(serverID) {
-    const friendName = prompt("Enter the username of the friend you want to invite:");
-    if (!friendName) return;
-    const res = await fetch("/api/servers/join", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ server_id: serverID, user: friendName }) });
-    if (res.ok) alert(`Invited ${friendName} to the server!`);
-    else alert("Failed to invite user.");
+// --- Generate & Join Invite Link ---
+async function generateInviteLink(serverID) {
+    const currentUser = localStorage.getItem("chathub_username") || "User";
+    const res = await fetch("/api/invites/generate", {
+        method: "POST", 
+        headers: { "Content-Type": "application/json" }, 
+        body: JSON.stringify({ server_id: serverID, creator: currentUser })
+    });
+    
+    const data = await res.json();
+    if (data.code) {
+        const inviteLink = `${window.location.origin}/invite.html?code=${data.code}`;
+        
+        navigator.clipboard.writeText(inviteLink).then(() => {
+            alert(`Invite link copied to clipboard!\n\n${inviteLink}`);
+        }).catch(err => {
+            prompt("Here is your invite link:", inviteLink);
+        });
+    } else {
+        alert("Failed to generate invite.");
+    }
 }
 
 async function openServerChannel(channelID, channelName, serverName) {
