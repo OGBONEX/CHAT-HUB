@@ -10,27 +10,10 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-var upgrader = websocket.Upgrader{
-	CheckOrigin: func(r *http.Request) bool { return true },
-}
-
-type Client struct {
-	conn *websocket.Conn
-}
-
-var (
-	clients   = make(map[*Client]bool)
-	clientsMu sync.Mutex
-)
-
-// Message structure
-type Message struct {
-	Author string `json:"author"`
-	Text   string `json:"text"`
-	Color  string `json:"color"`
-	Type   string `json:"type"` // "chat" or "presence"
-	Count  int    `json:"count,omitempty"` // Used for presence
-}
+var upgrader = websocket.Upgrader{CheckOrigin: func(r *http.Request) bool { return true }}
+type Client struct { conn *websocket.Conn }
+var (clients = make(map[*Client]bool); clientsMu sync.Mutex)
+type Message struct { Author string `json:"author"`; Text string `json:"text"`; Color string `json:"color"`; Type string `json:"type"` }
 
 func main() {
 	fs := http.FileServer(http.Dir("./"))
@@ -48,80 +31,78 @@ func main() {
 
 	port := ":8080"
 	fmt.Printf("🚀 Chat Hub backend started at http://localhost%s\n", port)
-	if err := http.ListenAndServe(port, nil); err != nil {
-		log.Fatal(err)
-	}
+	log.Fatal(http.ListenAndServe(port, nil))
 }
 
+// --- WEBSOCKET ---
 func handleConnections(w http.ResponseWriter, r *http.Request) {
 	ws, err := upgrader.Upgrade(w, r, nil)
-	if err != nil {
-		log.Fatal(err)
-	}
+	if err != nil { log.Fatal(err) }
 	defer ws.Close()
 
 	client := &Client{conn: ws}
-
-	clientsMu.Lock()
-	clients[client] = true
-	clientsMu.Unlock()
-
-	// Broadcast new user count to everyone
-	broadcastPresence()
+	clientsMu.Lock(); clients[client] = true; clientsMu.Unlock()
 
 	defer func() {
-		clientsMu.Lock()
-		delete(clients, client)
-		clientsMu.Unlock()
-		broadcastPresence() // Broadcast when someone leaves
+		clientsMu.Lock(); delete(clients, client); clientsMu.Unlock()
 	}()
 
 	for {
 		var msg Message
 		err := ws.ReadJSON(&msg)
 		if err != nil {
-			clientsMu.Lock()
-			delete(clients, client)
-			clientsMu.Unlock()
-			broadcastPresence()
-			break
+			clientsMu.Lock(); delete(clients, client); clientsMu.Unlock(); break
 		}
-		
-		// If it's a chat message, broadcast it
-		if msg.Type == "chat" {
-			broadcastMessage(msg)
-		}
+		clientsMu.Lock()
+		for c := range clients { c.conn.WriteJSON(msg) }
+		clientsMu.Unlock()
 	}
 }
 
-func broadcastMessage(msg Message) {
-	clientsMu.Lock()
-	defer clientsMu.Unlock()
-	for client := range clients {
-		client.conn.WriteJSON(msg)
-	}
-}
-
-// Sends the real-time online count
-func broadcastPresence() {
-	clientsMu.Lock()
-	count := len(clients)
-	clientsMu.Unlock()
-
-	msg := Message{
-		Type:  "presence",
-		Count: count,
-	}
-	
-	clientsMu.Lock()
-	defer clientsMu.Unlock()
-	for client := range clients {
-		client.conn.WriteJSON(msg)
-	}
-}
-
+// --- AUTHENTICATION ---
 var otpStore = make(map[string]string)
 var otpMutex sync.RWMutex
-type OTPRequest struct { Email string `json:"email"`; Code string `json:"code"` }
-func handleRequestOTP(w http.ResponseWriter, r *http.Request) { var req OTPRequest; json.NewDecoder(r.Body).Decode(&req); otpMutex.Lock(); otpStore[req.Email] = "123456"; otpMutex.Unlock(); w.WriteHeader(http.StatusOK); json.NewEncoder(w).Encode(map[string]string{"message": "OTP sent"}) }
-func handleVerifyOTP(w http.ResponseWriter, r *http.Request) { var req OTPRequest; json.NewDecoder(r.Body).Decode(&req); otpMutex.RLock(); savedCode := otpStore[req.Email]; otpMutex.RUnlock(); if savedCode == req.Code && savedCode != "" { delete(otpStore, req.Email); w.WriteHeader(http.StatusOK); json.NewEncoder(w).Encode(map[string]string{"token": "fake-jwt"}) } else { http.Error(w, "Invalid code", http.StatusUnauthorized) } }
+
+type AuthRequest struct {
+	Email    string `json:"email"`
+	Code     string `json:"code"`
+	Password string `json:"password"`
+}
+
+func handleRequestOTP(w http.ResponseWriter, r *http.Request) {
+	var req AuthRequest
+	json.NewDecoder(r.Body).Decode(&req)
+	
+	// Generate a fake code (In real life, use Brevo here)
+	fakeCode := "123456"
+	
+	otpMutex.Lock()
+	otpStore[req.Email] = fakeCode
+	otpMutex.Unlock()
+	
+	fmt.Printf("✉️ [MOCK EMAIL] Sent code %s to %s\n", fakeCode, req.Email)
+	
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]string{"message": "OTP sent"})
+}
+
+func handleVerifyOTP(w http.ResponseWriter, r *http.Request) {
+	var req AuthRequest
+	json.NewDecoder(r.Body).Decode(&req)
+	
+	otpMutex.RLock()
+	savedCode := otpStore[req.Email]
+	otpMutex.RUnlock()
+	
+	if savedCode == req.Code && savedCode != "" {
+		// Delete the OTP after success
+		otpMutex.Lock(); delete(otpStore, req.Email); otpMutex.Unlock()
+		
+		fmt.Printf("✅ User %s successfully registered with password.\n", req.Email)
+		
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]string{"token": "fake-jwt-token"})
+	} else {
+		http.Error(w, "Invalid code", http.StatusUnauthorized)
+	}
+}
