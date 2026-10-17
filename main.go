@@ -65,6 +65,7 @@ func main() {
 	// Server APIs
 	http.HandleFunc("/api/servers/create", handleCreateServer)
 	http.HandleFunc("/api/servers/get", handleGetServers)
+	http.HandleFunc("/api/servers/public", handleGetPublicServers) // NEW
 	http.HandleFunc("/api/servers/join", handleJoinServer)
 	http.HandleFunc("/api/channels/create", handleCreateChannel)
 	http.HandleFunc("/api/channels/get", handleGetChannels)
@@ -256,6 +257,22 @@ func handleGetServers(w http.ResponseWriter, r *http.Request) {
 	defer rows.Close()
 	var servers []map[string]interface{}
 	for rows.Next() { var id int; var name string; rows.Scan(&id, &name); servers = append(servers, map[string]interface{}{"id": id, "name": name}) }
+	if servers == nil { servers = []map[string]interface{}{} }
+	json.NewEncoder(w).Encode(servers)
+}
+
+// --- NEW: Public Servers ---
+func handleGetPublicServers(w http.ResponseWriter, r *http.Request) {
+	rows, _ := db.Query("SELECT id, name FROM servers")
+	defer rows.Close()
+
+	var servers []map[string]interface{}
+	for rows.Next() {
+		var id int
+		var name string
+		rows.Scan(&id, &name)
+		servers = append(servers, map[string]interface{}{"id": id, "name": name})
+	}
 	if servers == nil { servers = []map[string]interface{}{} }
 	json.NewEncoder(w).Encode(servers)
 }
