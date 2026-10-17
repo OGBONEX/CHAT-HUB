@@ -26,12 +26,10 @@ body { background: var(--bg-app); color: var(--text-main); height: 100vh; overfl
     cursor: pointer; transition: 0.2s; color: white; font-size: 1.1rem;
 }
 .server-icon:hover, .server-icon.active { border-radius: 16px; background: var(--accent); }
-.server-icon.home-btn { background: var(--bg-app); color: var(--text-main); }
-.server-icon.home-btn:hover, .server-icon.home-btn.active { background: var(--accent); color: white; }
 .sidebar-divider { width: 32px; height: 2px; background-color: var(--hover); border-radius: 1px; margin: 4px 0; }
 .server-icon.action-btn { background: var(--bg-app); color: #b5bac1; font-size: 1.2rem; }
 .server-icon.action-btn:hover { background: #23a559; color: white; border-radius: 16px; }
-#explore-btn:hover, #download-btn:hover { background: var(--accent); }
+#explore-btn:hover { background: var(--accent); }
 
 /* --- Channel / DM Sidebar --- */
 .channel-sidebar { width: 240px; background: var(--bg-sidebar); display: flex; flex-direction: column; flex-shrink: 0; }
@@ -67,23 +65,11 @@ body { background: var(--bg-app); color: var(--text-main); height: 100vh; overfl
 
 /* --- Avatars --- */
 .avatar { width: 32px; height: 32px; border-radius: 50%; display: flex; justify-content: center; align-items: center; font-weight: bold; color: white; font-size: 0.9rem; flex-shrink: 0; }
-.avatar.m { background: #9b59b6; } .avatar.j { background: #3498db; } .avatar.r { background: #2ecc71; }
 
 /* --- Main Chat Area --- */
-.chat-area { 
-    flex: 1; display: flex; flex-direction: column; min-width: 0; 
-    /* Floating Glow for App */
-    background-image: radial-gradient(circle at 80% 20%, rgba(255, 92, 70, 0.05) 0%, transparent 50%),
-                      radial-gradient(circle at 10% 90%, rgba(88, 101, 242, 0.05) 0%, transparent 50%);
-    background-attachment: fixed;
-}
+.chat-area { flex: 1; display: flex; flex-direction: column; min-width: 0; background-image: radial-gradient(circle at 80% 20%, rgba(255, 92, 70, 0.05) 0%, transparent 50%), radial-gradient(circle at 10% 90%, rgba(88, 101, 242, 0.05) 0%, transparent 50%); }
 .chat-header { height: 48px; display: flex; align-items: center; padding: 0 16px; font-weight: bold; justify-content: space-between; border-bottom: 1px solid rgba(0,0,0,0.2); flex-shrink: 0; z-index: 10; }
 .chat-title { display: flex; align-items: center; gap: 8px; }
-.header-sub { font-size: 0.8rem; color: var(--text-muted); font-weight: normal; }
-.header-actions { display: flex; gap: 16px; }
-.header-actions i { cursor: pointer; color: var(--text-muted); }
-.header-actions i:hover { color: var(--text-main); }
-
 .chat-messages { flex: 1; padding: 16px; overflow-y: auto; display: flex; flex-direction: column; gap: 16px; }
 .message { display: flex; gap: 16px; }
 .message-content { display: flex; flex-direction: column; }
@@ -98,25 +84,6 @@ body { background: var(--bg-app); color: var(--text-main); height: 100vh; overfl
 .chat-input i { color: var(--text-muted); cursor: pointer; font-size: 1.2rem; }
 .chat-input input { flex: 1; background: transparent; border: none; outline: none; color: var(--text-main); font-size: 1rem; padding: 0 16px; }
 .input-icons { display: flex; gap: 12px; }
-
-/* --- Right Profile Sidebar --- */
-.profile-sidebar {
-    width: 340px; background: var(--bg-sidebar); border-left: 1px solid rgba(0,0,0,0.2);
-    display: flex; flex-direction: column; overflow-y: auto; flex-shrink: 0;
-}
-.profile-banner { height: 120px; width: 100%; background: #c3c5cf; flex-shrink: 0; }
-.profile-avatar-wrapper { padding: 0 16px; margin-top: -40px; margin-bottom: 8px; }
-.profile-avatar { width: 80px; height: 80px; font-size: 2rem; border: 6px solid var(--bg-sidebar); }
-.profile-card { background: var(--bg-server); margin: 0 16px 16px 16px; border-radius: 8px; padding: 16px; }
-.profile-name { font-size: 1.3rem; font-weight: bold; margin-bottom: 4px; }
-.profile-tag { font-size: 0.85rem; color: var(--text-muted); margin-bottom: 16px; }
-.profile-bio p { font-size: 0.9rem; margin-bottom: 8px; }
-.mutual-info { font-size: 0.8rem; color: var(--text-muted); display: flex; align-items: center; gap: 6px; margin-bottom: 16px; }
-.profile-about, .profile-member-since { border-top: 1px solid var(--hover); padding-top: 16px; margin-top: 16px; }
-.profile-about h4, .profile-member-since h4 { font-size: 0.75rem; color: var(--text-main); margin-bottom: 8px; font-weight: 800; text-transform: uppercase; }
-.profile-about p, .profile-member-since p { font-size: 0.85rem; color: var(--text-muted); }
-.btn-full-profile { width: 100%; background: var(--accent); color: white; border: none; padding: 10px; border-radius: 4px; font-weight: bold; margin-top: 20px; cursor: pointer; transition: 0.2s; }
-.btn-full-profile:hover { background: #4752c4; }
 
 /* --- Settings Modal --- */
 .modal-overlay {
