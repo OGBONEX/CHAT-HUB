@@ -15,6 +15,8 @@
                 <i class="fa-solid fa-comment-dots"></i>
             </div>
             <div class="sidebar-divider"></div>
+            
+            <!-- Action Buttons -->
             <div class="server-icon action-btn" id="create-server-btn" title="Create a Server">
                 <i class="fa-solid fa-plus"></i>
             </div>
@@ -30,8 +32,14 @@
             </div>
             
             <div class="channel-list">
-                <div class="channel" id="nav-friends"><i class="fa-solid fa-user-group"></i> Friends</div>
-                <div class="channel active" id="nav-dms"><i class="fa-solid fa-inbox"></i> Direct Messages</div>
+                <!-- Friends Button -->
+                <div class="channel" id="nav-friends">
+                    <i class="fa-solid fa-user-group"></i> Friends
+                </div>
+                <!-- DMs Button -->
+                <div class="channel active" id="nav-dms">
+                    <i class="fa-solid fa-inbox"></i> Direct Messages
+                </div>
                 
                 <div class="category" id="dm-category">DIRECT MESSAGES</div>
                 
@@ -54,6 +62,7 @@
                 <div class="user-controls">
                     <i class="fa-solid fa-microphone"></i>
                     <i class="fa-solid fa-headphones"></i>
+                    <!-- Settings Button -->
                     <i class="fa-solid fa-gear" id="settings-btn" style="cursor: pointer;"></i>
                 </div>
             </div>
@@ -61,21 +70,25 @@
 
         <!-- Main Chat Area (DMs) -->
         <div class="chat-area" id="view-dms">
+            <!-- Blank state (Shows when no chat is selected) -->
             <div id="dm-empty-state" style="flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; color: var(--text-muted);">
-                <i class="fa-regular fa-comments" style="font-size: 4rem; margin-bottom: 20px;"></i>
-                <h2>Welcome to Chat Hub</h2>
+                <i class="fa-regular fa-comments" style="font-size: 4rem; margin-bottom: 20px; color: var(--border-color);"></i>
+                <h2 style="color: white; margin-bottom: 8px;">Welcome to Chat Hub</h2>
                 <p>Select a friend from the Friends tab to start chatting.</p>
             </div>
 
+            <!-- Active DM view (Hidden by default) -->
             <div id="dm-active-chat" style="display: none; flex: 1; flex-direction: column; height: 100%;">
                 <div class="chat-header">
                     <div class="chat-title">
-                        <div class="avatar" id="dm-chat-avatar" style="width: 24px; height: 24px; font-size: 0.7rem; background: #5865F2;">U</div>
+                        <div class="avatar" id="dm-chat-avatar" style="width: 32px; height: 32px; font-size: 0.9rem; background: #5865F2;">U</div>
                         <span id="dm-chat-name">User</span>
                     </div>
                 </div>
                 
-                <div class="chat-messages" id="dm-messages-container"></div>
+                <div class="chat-messages" id="dm-messages-container">
+                    <!-- Messages will appear here -->
+                </div>
                 
                 <div class="chat-input-wrapper">
                     <div class="chat-input">
@@ -94,13 +107,13 @@
             <div class="chat-header">
                 <div class="chat-title"><i class="fa-solid fa-user-group" style="margin-right: 8px;"></i> Friends</div>
             </div>
-            <div style="padding: 20px; flex: 1; overflow-y: auto;">
-                <div style="display: flex; gap: 10px; margin-bottom: 20px;">
-                    <input type="text" id="friend-search" placeholder="Enter a username to add..." style="flex: 1; padding: 10px; background: var(--bg-server); border: none; border-radius: 4px; color: white; outline: none;">
-                    <button style="background: var(--accent); color: white; border: none; padding: 0 20px; border-radius: 4px; font-weight: bold; cursor: pointer;" onclick="addFriend()">Send Request</button>
+            <div style="padding: 32px; flex: 1; overflow-y: auto;">
+                <div style="display: flex; gap: 12px; margin-bottom: 32px;">
+                    <input type="text" id="friend-search" placeholder="Enter a username to add..." style="flex: 1; padding: 12px 16px; background: var(--bg-input); border: 1px solid var(--border-color); border-radius: 8px; color: white; outline: none; font-size: 1rem;">
+                    <button style="background: var(--accent); color: white; border: none; padding: 0 24px; border-radius: 8px; font-weight: 700; cursor: pointer; transition: 0.2s;" onmouseover="this.style.background='var(--accent-hover)'" onmouseout="this.style.background='var(--accent)'" onclick="addFriend()">Send Request</button>
                 </div>
                 
-                <h3 style="font-size: 0.8rem; color: var(--text-muted); text-transform: uppercase; margin-bottom: 10px;">Your Friends</h3>
+                <h3 style="font-size: 0.8rem; color: var(--text-muted); text-transform: uppercase; margin-bottom: 16px; letter-spacing: 0.5px;">Your Friends</h3>
                 <div id="friends-list">
                     <p style="color: var(--text-muted); font-size: 0.9rem;">You don't have any friends yet. Add some!</p>
                 </div>
@@ -112,11 +125,14 @@
     <div class="modal-overlay" id="settings-modal">
         <div class="settings-modal">
             <button class="settings-close" id="close-settings">&times;</button>
+            
             <div class="settings-sidebar">
                 <div class="settings-tab active">My Account</div>
                 <div class="settings-tab">Profile</div>
+                <div class="settings-tab">Voice & Video</div>
                 <div class="settings-tab" style="margin-top: auto; color: #ff5c46;" onclick="logout()">Log Out</div>
             </div>
+
             <div class="settings-content">
                 <h2>My Account</h2>
                 <div class="form-group">
@@ -125,9 +141,9 @@
                 </div>
                 <div class="form-group">
                     <label>Profile Accent Color</label>
-                    <input type="color" id="settings-color" value="#5865F2" style="height: 40px; cursor: pointer;">
+                    <input type="color" id="settings-color" value="#5865F2" style="height: 48px; cursor: pointer;">
                 </div>
-                <button class="btn-full-profile" style="width: auto; padding: 10px 20px;" onclick="saveProfile()">Save Changes</button>
+                <button class="btn-full-profile" onclick="saveProfile()">Save Changes</button>
             </div>
         </div>
     </div>
