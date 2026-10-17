@@ -1,116 +1,98 @@
 document.addEventListener("DOMContentLoaded", () => {
-    // --- 1. WebSocket Connection ---
-    const wsProtocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
-    const socket = new WebSocket(wsProtocol + window.location.host + '/ws');
+    // --- 1. Load User Data ---
+    let currentUsername = localStorage.getItem("chathub_username") || "User";
+    
+    const displayName = document.getElementById("user-display-name");
+    const userAvatar = document.getElementById("user-avatar");
+    const settingsUsername = document.getElementById("settings-username");
 
-    socket.onopen = () => console.log("Connected to Chat Hub WebSocket!");
-    socket.onerror = (error) => console.error("WebSocket Error:", error);
+    if (displayName) displayName.innerText = currentUsername;
+    if (settingsUsername) settingsUsername.value = currentUsername;
+    if (userAvatar) userAvatar.innerText = currentUsername.charAt(0).toUpperCase();
 
-    socket.onmessage = (event) => {
-        const data = JSON.parse(event.data);
-        
-        if (data.type === "presence") {
-            const onlineCount = document.getElementById("online-count");
-            if (onlineCount) onlineCount.innerText = data.count;
-        } 
-        else if (data.type === "chat") {
-            appendMessage(data.author, data.text, data.color);
-        }
-    };
+    // --- 2. Navigation Logic (DMs vs Friends) ---
+    const navFriends = document.getElementById("nav-friends");
+    const navDms = document.getElementById("nav-dms");
+    const viewFriends = document.getElementById("view-friends");
+    const viewDms = document.getElementById("view-dms");
+    const dmCategory = document.getElementById("dm-category");
+    const dmListContainer = document.getElementById("dm-list-container");
 
-    // --- 2. Chat Input Logic ---
-    const messageInput = document.getElementById("message-input");
-    const chatMessages = document.getElementById("chat-messages");
+    if (navFriends && navDms) {
+        navFriends.addEventListener("click", () => {
+            navFriends.classList.add("active");
+            navDms.classList.remove("active");
+            viewFriends.style.display = "flex";
+            viewDms.style.display = "none";
+            dmCategory.style.display = "none";
+            dmListContainer.style.display = "none";
+        });
 
-    if (messageInput && chatMessages) {
-        messageInput.addEventListener("keypress", function(event) {
-            if (event.key === "Enter" && messageInput.value.trim() !== "") {
-                event.preventDefault();
-                
-                const payload = {
-                    type: "chat",
-                    author: "You", 
-                    text: messageInput.value.trim(),
-                    color: "#5865F2" 
-                };
-
-                socket.send(JSON.stringify(payload));
-                messageInput.value = "";
-            }
+        navDms.addEventListener("click", () => {
+            navDms.classList.add("active");
+            navFriends.classList.remove("active");
+            viewDms.style.display = "flex";
+            viewFriends.style.display = "none";
+            dmCategory.style.display = "block";
+            dmListContainer.style.display = "block";
         });
     }
 
-    function appendMessage(author, text, color) {
-        if (!chatMessages) return;
-        const messageDiv = document.createElement("div");
-        messageDiv.className = "message";
-        const initial = author.charAt(0).toUpperCase();
-
-        messageDiv.innerHTML = `
-            <div class="avatar" style="background: ${color};">${initial}</div>
-            <div class="message-content">
-                <div class="message-header">
-                    <span class="author" style="color: ${color};">${author}</span>
-                    <span class="time">Just now</span>
-                </div>
-                <div class="text">${escapeHTML(text)}</div>
-            </div>
-        `;
-        chatMessages.appendChild(messageDiv);
-        chatMessages.scrollTop = chatMessages.scrollHeight;
-    }
-
-    function escapeHTML(str) {
-        return str.replace(/[&<>'"]/g, tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag]));
-    }
-
-    // --- 3. Sidebar Action Buttons Logic ---
-    const createServerBtn = document.getElementById("create-server-btn");
-    const exploreBtn = document.getElementById("explore-btn");
-
-    if (createServerBtn) {
-        createServerBtn.addEventListener("click", () => {
-            const serverName = prompt("Enter a name for your new server:");
-            if (serverName) {
-                alert(`Server "${serverName}" created! (Backend logic coming soon)`);
-                const newIcon = document.createElement("div");
-                newIcon.className = "server-icon";
-                newIcon.innerText = serverName.substring(0, 2).toUpperCase();
-                newIcon.title = serverName;
-                const divider = document.querySelector(".sidebar-divider");
-                divider.parentNode.insertBefore(newIcon, divider);
-            }
-        });
-    }
-
-    if (exploreBtn) {
-        exploreBtn.addEventListener("click", () => alert("Opening the Server Discovery page..."));
-    }
-
-    // --- 4. Settings Modal Logic ---
+    // --- 3. Settings Modal Logic ---
     const settingsBtn = document.getElementById("settings-btn");
     const settingsModal = document.getElementById("settings-modal");
     const closeSettings = document.getElementById("close-settings");
 
-    if (settingsBtn) {
-        settingsBtn.addEventListener("click", () => settingsModal.classList.add("active"));
-    }
-
-    if (closeSettings) {
-        closeSettings.addEventListener("click", () => settingsModal.classList.remove("active"));
-    }
-
+    if (settingsBtn) settingsBtn.addEventListener("click", () => settingsModal.classList.add("active"));
+    if (closeSettings) closeSettings.addEventListener("click", () => settingsModal.classList.remove("active"));
     if (settingsModal) {
         settingsModal.addEventListener("click", (e) => {
             if (e.target === settingsModal) settingsModal.classList.remove("active");
         });
     }
-
-    const tabs = document.querySelectorAll(".settings-tab");
-    tabs.forEach(tab => {
-        tab.addEventListener("click", function() {
-            tabs.forEach(t => t.classList.remove("active"));
-            this.classList.add("active");
-        });
-    });
 });
+
+// Add Friend Logic
+function addFriend() {
+    const friendName = document.getElementById("friend-search").value;
+    if (!friendName) return;
+
+    const friendsList = document.getElementById("friends-list");
+    
+    // Clear empty text if it's there
+    if (friendsList.innerHTML.includes("don't have any friends yet")) {
+        friendsList.innerHTML = "";
+    }
+
+    // Create friend row
+    const friendDiv = document.createElement("div");
+    friendDiv.style.cssText = "display: flex; align-items: center; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--hover);";
+    friendDiv.innerHTML = `
+        <div style="display: flex; align-items: center; gap: 10px;">
+            <div class="avatar" style="background: #5865F2;">${friendName.charAt(0).toUpperCase()}</div>
+            <span style="font-weight: bold;">${friendName}</span>
+        </div>
+        <button style="background: #23a559; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer;">Message</button>
+    `;
+    
+    friendsList.appendChild(friendDiv);
+    document.getElementById("friend-search").value = "";
+}
+
+// Save profile logic
+function saveProfile() {
+    const newName = document.getElementById("settings-username").value;
+    if (newName) {
+        localStorage.setItem("chathub_username", newName);
+        document.getElementById("user-display-name").innerText = newName;
+        document.getElementById("user-avatar").innerText = newName.charAt(0).toUpperCase();
+        alert("Profile updated!");
+        document.getElementById("settings-modal").classList.remove("active");
+    }
+}
+
+// Logout logic
+function logout() {
+    localStorage.removeItem("chathub_username");
+    window.location.href = "index.html";
+}
