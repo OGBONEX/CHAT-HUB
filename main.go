@@ -26,8 +26,6 @@ func initDB() {
 	createUsersTable := `CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT UNIQUE, email TEXT UNIQUE, password TEXT, color TEXT DEFAULT '#5865F2');`
 	createFriendsTable := `CREATE TABLE IF NOT EXISTS friends (id INTEGER PRIMARY KEY AUTOINCREMENT, user1 TEXT, user2 TEXT, UNIQUE(user1, user2));`
 	createMessagesTable := `CREATE TABLE IF NOT EXISTS messages (id INTEGER PRIMARY KEY AUTOINCREMENT, sender TEXT, receiver TEXT, content TEXT, timestamp DATETIME DEFAULT CURRENT_TIMESTAMP);`
-	
-	// New Tables for Servers
 	createServersTable := `CREATE TABLE IF NOT EXISTS servers (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, owner TEXT);`
 	createChannelsTable := `CREATE TABLE IF NOT EXISTS channels (id INTEGER PRIMARY KEY AUTOINCREMENT, server_id INTEGER, name TEXT, type TEXT DEFAULT 'text');`
 	createServerMembersTable := `CREATE TABLE IF NOT EXISTS server_members (id INTEGER PRIMARY KEY AUTOINCREMENT, server_id INTEGER, username TEXT, UNIQUE(server_id, username));`
@@ -54,15 +52,12 @@ func main() {
 		fs.ServeHTTP(w, r)
 	})
 
-	// APIs
 	http.HandleFunc("/api/register", handleRegister)
 	http.HandleFunc("/api/login", handleLogin)
 	http.HandleFunc("/api/friends", handleFriends)
 	http.HandleFunc("/api/messages/send", handleSendMessage)
 	http.HandleFunc("/api/messages/get", handleGetMessages)
 	http.HandleFunc("/api/profile/update", handleUpdateProfile)
-	
-	// Server APIs
 	http.HandleFunc("/api/servers/create", handleCreateServer)
 	http.HandleFunc("/api/servers/get", handleGetServers)
 	http.HandleFunc("/api/servers/join", handleJoinServer)
@@ -70,7 +65,6 @@ func main() {
 	http.HandleFunc("/api/channels/get", handleGetChannels)
 	http.HandleFunc("/api/server-messages/send", handleSendServerMessage)
 	http.HandleFunc("/api/server-messages/get", handleGetServerMessages)
-	
 	http.HandleFunc("/ws", handleConnections)
 
 	port := ":8080"
@@ -99,9 +93,26 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 	}()
 
 	for {
-		if _, _, err := ws.ReadMessage(); err != nil {
+		var msg map[string]interface{}
+		err := ws.ReadJSON(&msg)
+		if err != nil {
 			clientsMu.Lock(); delete(clients, client); clientsMu.Unlock()
 			break
+		}
+
+		// Handle typing events
+		if msg["type"] == "typing" || msg["type"] == "stop_typing" {
+			target, ok := msg["target"].(string)
+			if !ok { continue }
+			
+			clientsMu.Lock()
+			for c := range clients {
+				// Send to the target user OR the user who is typing (to sync multiple tabs)
+				if c.username == target || c.username == username {
+					c.conn.WriteJSON(msg)
+				}
+			}
+			clientsMu.Unlock()
 		}
 	}
 }
@@ -197,14 +208,13 @@ func handleCreateServer(w http.ResponseWriter, r *http.Request) {
 	res, _ := db.Exec("INSERT INTO servers (name, owner) VALUES (?, ?)", req.Name, req.Owner)
 	serverID, _ := res.LastInsertId()
 	db.Exec("INSERT INTO channels (server_id, name) VALUES (?, ?)", serverID, "general")
-	db.Exec("INSERT INTO server_members (server_id, username) VALUES (?, ?)", serverID, req.Owner) // Owner auto-joins
+	db.Exec("INSERT INTO server_members (server_id, username) VALUES (?, ?)", serverID, req.Owner)
 	dbMu.Unlock()
 	json.NewEncoder(w).Encode(map[string]interface{}{"server_id": serverID})
 }
 
 func handleGetServers(w http.ResponseWriter, r *http.Request) {
 	user := r.URL.Query().Get("user")
-	// Get servers where the user is a member
 	rows, _ := db.Query("SELECT s.id, s.name FROM servers s JOIN server_members m ON s.id = m.server_id WHERE m.username = ?", user)
 	defer rows.Close()
 	var servers []map[string]interface{}
@@ -219,7 +229,6 @@ func handleJoinServer(w http.ResponseWriter, r *http.Request) {
 	var exists int
 	db.QueryRow("SELECT COUNT(*) FROM servers WHERE id = ?", req.ServerID).Scan(&exists)
 	if exists == 0 { http.Error(w, "Server not found", http.StatusNotFound); return }
-	
 	dbMu.Lock()
 	db.Exec("INSERT OR IGNORE INTO server_members (server_id, username) VALUES (?, ?)", req.ServerID, req.User)
 	dbMu.Unlock()
@@ -246,11 +255,36 @@ func handleGetChannels(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleSendServerMessage(w http.ResponseWriter, r *http.Request) {
-	var req struct { ChannelID int; Sender, Content string }
+	var req struct {
+		ChannelID int    `json:"channel_id"`
+		Sender    string `json:"sender"`
+		Content   string `json:"content"`
+	}
 	json.NewDecoder(r.Body).Decode(&req)
+
+	receiver := fmt.Sprintf("channel_%d", req.ChannelID)
+
 	dbMu.Lock()
-	db.Exec("INSERT INTO messages (sender, receiver, content) VALUES (?, ?, ?)", req.Sender, fmt.Sprintf("channel_%d", req.ChannelID), req.Content)
+	_, err := db.Exec("INSERT INTO messages (sender, receiver, content) VALUES (?, ?, ?)", req.Sender, receiver, req.Content)
 	dbMu.Unlock()
+
+	if err != nil {
+		http.Error(w, "Error saving message", http.StatusInternalServerError)
+		return
+	}
+
+	// Broadcast to EVERY connected user
+	clientsMu.Lock()
+	for c := range clients {
+		c.conn.WriteJSON(map[string]interface{}{
+			"type":       "server_message",
+			"channel_id": req.ChannelID,
+			"sender":     req.Sender,
+			"content":    req.Content,
+		})
+	}
+	clientsMu.Unlock()
+
 	w.WriteHeader(http.StatusOK)
 }
 
