@@ -58,7 +58,7 @@ func main() {
 	http.HandleFunc("/api/friends", handleFriends)
 	http.HandleFunc("/api/messages/send", handleSendMessage)
 	http.HandleFunc("/api/messages/get", handleGetMessages)
-	http.HandleFunc("/api/messages/recent", handleGetRecentDMs) // NEW
+	http.HandleFunc("/api/messages/recent", handleGetRecentDMs)
 	http.HandleFunc("/api/messages/edit", handleEditMessage)
 	http.HandleFunc("/api/messages/delete", handleDeleteMessage)
 	http.HandleFunc("/api/profile/update", handleUpdateProfile)
@@ -108,14 +108,30 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 
+		// Handle Typing Indicators
 		if msg["type"] == "typing" || msg["type"] == "stop_typing" {
+			target, ok := msg["target"].(string)
+			if !ok { continue }
+			clientsMu.Lock()
+			for c := range clients {
+				if c.username == target || c.username == username {
+					c.conn.WriteJSON(msg)
+				}
+			}
+			clientsMu.Unlock()
+		}
+
+		// Handle WebRTC Signaling
+		if msg["type"] == "webrtc_signal" {
 			target, ok := msg["target"].(string)
 			if !ok { continue }
 			
 			clientsMu.Lock()
 			for c := range clients {
-				if c.username == target || c.username == username {
-					c.conn.WriteJSON(msg)
+				if c.username == target {
+					c.conn.WriteJSON(map[string]interface{}{
+						"type": "webrtc_signal", "sender": username, "signal": msg["signal"],
+					})
 				}
 			}
 			clientsMu.Unlock()
@@ -187,11 +203,7 @@ func handleSendMessage(w http.ResponseWriter, r *http.Request) {
 	res, err := db.Exec("INSERT INTO messages (sender, receiver, content) VALUES (?, ?, ?)", req.Sender, req.Receiver, req.Content)
 	dbMu.Unlock()
 	
-	if err != nil {
-		http.Error(w, "Error saving", http.StatusInternalServerError)
-		return
-	}
-	
+	if err != nil { http.Error(w, "Error saving", http.StatusInternalServerError); return }
 	msgID, _ := res.LastInsertId()
 
 	clientsMu.Lock()
@@ -221,25 +233,13 @@ func handleGetMessages(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(messages)
 }
 
-// --- NEW: Recent DMs API ---
 func handleGetRecentDMs(w http.ResponseWriter, r *http.Request) {
 	user := r.URL.Query().Get("user")
-	query := `
-		SELECT DISTINCT 
-			CASE WHEN sender = ? THEN receiver ELSE sender END as contact
-		FROM messages 
-		WHERE (sender = ? AND receiver NOT LIKE 'channel_%') 
-		   OR (receiver = ? AND sender NOT LIKE 'channel_%')
-	`
+	query := `SELECT DISTINCT CASE WHEN sender = ? THEN receiver ELSE sender END as contact FROM messages WHERE (sender = ? AND receiver NOT LIKE 'channel_%') OR (receiver = ? AND sender NOT LIKE 'channel_%')`
 	rows, _ := db.Query(query, user, user, user)
 	defer rows.Close()
-
 	var contacts []string
-	for rows.Next() {
-		var c string
-		rows.Scan(&c)
-		contacts = append(contacts, c)
-	}
+	for rows.Next() { var c string; rows.Scan(&c); contacts = append(contacts, c) }
 	if contacts == nil { contacts = []string{} }
 	json.NewEncoder(w).Encode(contacts)
 }
@@ -247,18 +247,14 @@ func handleGetRecentDMs(w http.ResponseWriter, r *http.Request) {
 func handleEditMessage(w http.ResponseWriter, r *http.Request) {
 	var req struct { ID int; Content string }
 	json.NewDecoder(r.Body).Decode(&req)
-	dbMu.Lock()
-	db.Exec("UPDATE messages SET content = ? WHERE id = ?", req.Content, req.ID)
-	dbMu.Unlock()
+	dbMu.Lock(); db.Exec("UPDATE messages SET content = ? WHERE id = ?", req.Content, req.ID); dbMu.Unlock()
 	w.WriteHeader(http.StatusOK)
 }
 
 func handleDeleteMessage(w http.ResponseWriter, r *http.Request) {
 	var req struct { ID int }
 	json.NewDecoder(r.Body).Decode(&req)
-	dbMu.Lock()
-	db.Exec("DELETE FROM messages WHERE id = ?", req.ID)
-	dbMu.Unlock()
+	dbMu.Lock(); db.Exec("DELETE FROM messages WHERE id = ?", req.ID); dbMu.Unlock()
 	w.WriteHeader(http.StatusOK)
 }
 
@@ -289,12 +285,7 @@ func handleGetPublicServers(w http.ResponseWriter, r *http.Request) {
 	rows, _ := db.Query("SELECT id, name FROM servers")
 	defer rows.Close()
 	var servers []map[string]interface{}
-	for rows.Next() {
-		var id int
-		var name string
-		rows.Scan(&id, &name)
-		servers = append(servers, map[string]interface{}{"id": id, "name": name})
-	}
+	for rows.Next() { var id int; var name string; rows.Scan(&id, &name); servers = append(servers, map[string]interface{}{"id": id, "name": name}) }
 	if servers == nil { servers = []map[string]interface{}{} }
 	json.NewEncoder(w).Encode(servers)
 }
@@ -305,18 +296,14 @@ func handleJoinServer(w http.ResponseWriter, r *http.Request) {
 	var exists int
 	db.QueryRow("SELECT COUNT(*) FROM servers WHERE id = ?", req.ServerID).Scan(&exists)
 	if exists == 0 { http.Error(w, "Server not found", http.StatusNotFound); return }
-	dbMu.Lock()
-	db.Exec("INSERT OR IGNORE INTO server_members (server_id, username) VALUES (?, ?)", req.ServerID, req.User)
-	dbMu.Unlock()
+	dbMu.Lock(); db.Exec("INSERT OR IGNORE INTO server_members (server_id, username) VALUES (?, ?)", req.ServerID, req.User); dbMu.Unlock()
 	w.WriteHeader(http.StatusOK)
 }
 
 func handleCreateChannel(w http.ResponseWriter, r *http.Request) {
 	var req struct { ServerID int; Name string }
 	json.NewDecoder(r.Body).Decode(&req)
-	dbMu.Lock()
-	db.Exec("INSERT INTO channels (server_id, name) VALUES (?, ?)", req.ServerID, req.Name)
-	dbMu.Unlock()
+	dbMu.Lock(); db.Exec("INSERT INTO channels (server_id, name) VALUES (?, ?)", req.ServerID, req.Name); dbMu.Unlock()
 	w.WriteHeader(http.StatusOK)
 }
 
@@ -331,24 +318,15 @@ func handleGetChannels(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleSendServerMessage(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		ChannelID int    `json:"channel_id"`
-		Sender    string `json:"sender"`
-		Content   string `json:"content"`
-	}
+	var req struct { ChannelID int; Sender, Content string }
 	json.NewDecoder(r.Body).Decode(&req)
-
 	receiver := fmt.Sprintf("channel_%d", req.ChannelID)
 
 	dbMu.Lock()
 	res, err := db.Exec("INSERT INTO messages (sender, receiver, content) VALUES (?, ?, ?)", req.Sender, receiver, req.Content)
 	dbMu.Unlock()
 
-	if err != nil {
-		http.Error(w, "Error saving message", http.StatusInternalServerError)
-		return
-	}
-	
+	if err != nil { http.Error(w, "Error saving message", http.StatusInternalServerError); return }
 	msgID, _ := res.LastInsertId()
 
 	clientsMu.Lock()
@@ -358,7 +336,6 @@ func handleSendServerMessage(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 	clientsMu.Unlock()
-
 	w.WriteHeader(http.StatusOK)
 }
 
@@ -368,12 +345,7 @@ func handleGetServerMessages(w http.ResponseWriter, r *http.Request) {
 	rows, _ := db.Query("SELECT id, sender, content FROM messages WHERE receiver = ? ORDER BY timestamp ASC", receiver)
 	defer rows.Close()
 	var messages []map[string]interface{}
-	for rows.Next() { 
-		var id int
-		var s, c string
-		rows.Scan(&id, &s, &c)
-		messages = append(messages, map[string]interface{}{"id": id, "sender": s, "content": c}) 
-	}
+	for rows.Next() { var id int; var s, c string; rows.Scan(&id, &s, &c); messages = append(messages, map[string]interface{}{"id": id, "sender": s, "content": c}) }
 	if messages == nil { messages = []map[string]interface{}{} }
 	json.NewEncoder(w).Encode(messages)
 }
